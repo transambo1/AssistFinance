@@ -1,0 +1,41 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    driverClassName: "com.mysql.cj.jdbc.Driver"
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect
+    hibernate:
+    #      ddl-auto: validate
+    show-sql: true
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: tuanphat17edu@gmail.com
+    password: kbsv ueln uokm gxlq
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+vnpay:
+  tmnCode: FRKIW639
+  secretKey: OK25EA6UVCYQG0CA3M4BWPW3GZLM3CG1
+  paymentUrl: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+  refundUrl: https://sandbox.vnpayment.vn/merchant_webapi/api/transaction
+  #  returnUrl: http://localhost:5173/restaurant
+  returnUrl: http://localhost:8080/api/payments/vnpay/return
+  ipnUrl: http://localhost:8080/api/payments/vnpay/ipn
+
+#  security:
+#    user:
+#      name: admin
+#      password: 123456
+jwt:
+  signerKey: "Fx4NoxybRRfHEk5J4Z12C45rxdfAcNGkMehTCQ1qrdY6B/Mw0Ie4E+36zVliXgWN\n"
+  valid-duration: 3600 #in second
+  refreshable-duration: 7200 #in second
+server:
+  port: 8080
