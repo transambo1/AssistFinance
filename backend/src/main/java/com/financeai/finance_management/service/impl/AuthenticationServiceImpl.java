@@ -48,7 +48,6 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
     UserRepository userRepository;
     InvalidatedTokenRepository invalidatedTokenRepository;
     private static final List<String> SEARCH_FIELDS = List.of("fullname");
-    private final ICategoryService categoryService;
 
     @NonFinal
     @Value("${jwt.signerKey}")
@@ -114,35 +113,6 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
                 .build();
     }
 
-<<<<<<< Updated upstream
-=======
-        // 2. Mã hóa mật khẩu
-        PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
-        String encodedPassword = passwordEncoder.encode(request.getPassword());
-
-        // 3. Tạo user mới (Phải có ID và đúng tên field fullName)
-        User newUser = User.builder()
-                .id(String.valueOf(IdGenerator.generateRandomId())) // BẮT BUỘC phải có dòng này vì Entity không tự sinh ID
-                .username(request.getUsername())
-                .password(encodedPassword)
-                .fullName(request.getFullName()) // Khớp với biến fullName trong Entity
-                .email(request.getEmail())
-                .currentBalance(java.math.BigDecimal.ZERO) // Set giá trị mặc định cho an toàn
-                .build();
-
-        User savedUser = userRepository.save(newUser);
-        categoryService.createDefaultCategories(savedUser.getId());
-
-
-        // 4. Tự động đăng nhập
-        String token = generateToken(savedUser);
-
-        return AuthenticationResponse.builder()
-                .token(token)
-                .authenticated(true)
-                .build();
-    }
->>>>>>> Stashed changes
     @Override
     public SignedJWT verifyToken(String token, boolean isRefresh) throws ParseException, JOSEException {
         JWSVerifier verifier = new MACVerifier(SIGNER_KEY.getBytes());
