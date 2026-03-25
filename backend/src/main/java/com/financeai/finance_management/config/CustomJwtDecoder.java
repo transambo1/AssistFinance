@@ -32,9 +32,14 @@ public class CustomJwtDecoder implements JwtDecoder {
         try {
             var response = authenticationService.introspectResponse(
                     IntrospectRequest.builder().token(token).build());
-            if(!response.isValid()) throw  new JwtException("invalid token");
+            if(!response.isValid()) {
+                // Dòng này cực kỳ quan trọng để debug:
+                System.err.println("DEBUG: Token bị từ chối bởi introspectResponse");
+                throw new JwtException("invalid token");
+            }
 
         } catch (ParseException  | JOSEException e) {
+            System.err.println("DEBUG: Lỗi giải mã: " + e.getMessage());
             throw new JwtException(e.getMessage());
         }
         if(Objects.isNull(nimbusJwtDecoder)) {

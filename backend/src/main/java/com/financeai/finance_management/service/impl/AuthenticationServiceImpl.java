@@ -1,8 +1,7 @@
 package com.financeai.finance_management.service.impl;
 
-import com.financeai.finance_management.dto.request.AuthenticationRequest;
-import com.financeai.finance_management.dto.request.IntrospectRequest;
-import com.financeai.finance_management.dto.request.RefreshRequest;
+import com.financeai.finance_management.common.IdGenerator;
+import com.financeai.finance_management.dto.request.*;
 import com.financeai.finance_management.dto.response.AuthenticationResponse;
 import com.financeai.finance_management.dto.response.IntrospectResponse;
 import com.financeai.finance_management.entity.InvalidatedToken;
@@ -36,6 +35,7 @@ import org.springframework.util.CollectionUtils;
 
 import java.text.ParseException;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
@@ -111,12 +111,44 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
                 .authenticated(true)
                 .build();
     }
+    @Override
+    public AuthenticationResponse register(RegisterRequest request) {
+        // 1. Kiểm tra username tồn tại
+        if (userRepository.findByUsername(request.getUsername()).isPresent()) {
+            throw new AppException(ErrorCode.USER_EXISTED);
+        }
 
+        // 2. Mã hóa mật khẩu
+        PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
+        String encodedPassword = passwordEncoder.encode(request.getPassword());
+
+        // 3. Tạo user mới (Phải có ID và đúng tên field fullName)
+        User newUser = User.builder()
+                .id(String.valueOf(IdGenerator.generateRandomId())) // BẮT BUỘC phải có dòng này vì Entity không tự sinh ID
+                .username(request.getUsername())
+                .password(encodedPassword)
+                .fullName(request.getFullName()) // Khớp với biến fullName trong Entity
+                .email(request.getEmail())
+                .currentBalance(java.math.BigDecimal.ZERO) // Set giá trị mặc định cho an toàn
+                .build();
+
+        userRepository.save(newUser);
+
+        // 4. Tự động đăng nhập
+        String token = generateToken(newUser);
+
+        return AuthenticationResponse.builder()
+                .token(token)
+                .authenticated(true)
+                .build();
+    }
     @Override
     public SignedJWT verifyToken(String token, boolean isRefresh) throws ParseException, JOSEException {
         JWSVerifier verifier = new MACVerifier(SIGNER_KEY.getBytes());
 
         SignedJWT signedJWT = SignedJWT.parse(token);
+
+        // Kiểm tra thời gian hết hạn
         Date expiryTime = (isRefresh)
                 ? new Date(signedJWT.getJWTClaimsSet().getIssueTime()
                 .toInstant().plus(REFRESHABLE_DURATION, ChronoUnit.SECONDS)
@@ -125,18 +157,24 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
 
         var verified = signedJWT.verify(verifier);
 
-        if(!(verified && expiryTime.after(new Date()))) throw new AppException(ErrorCode.UNAUTHENTICATED);
+        // LOG RA ĐỂ BIẾT TẠI SAO FALSE
+        if (!verified) System.err.println("DEBUG: Chu ky Token khong khop!");
+        if (!expiryTime.after(new Date())) System.err.println("DEBUG: Token da het han!");
 
-        if(invalidatedTokenRepository.existsById(signedJWT.getJWTClaimsSet().getJWTID()))
+        if (!(verified && expiryTime.after(new Date())))
             throw new AppException(ErrorCode.UNAUTHENTICATED);
+
+        if (invalidatedTokenRepository.existsById(signedJWT.getJWTClaimsSet().getJWTID())) {
+            System.err.println("DEBUG: Token nam trong danh sach den (Blacklist)!");
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
         return signedJWT;
     }
-
     @Override
     public String generateToken(User user) {
         JWSHeader header = new JWSHeader(JWSAlgorithm.HS512);
         JWTClaimsSet jwtClaimsSet = new JWTClaimsSet.Builder()
-                .subject(String.valueOf(user.getId()))
+                .subject(user.getUsername())
                 .issuer("fast-food.com")
                 .issueTime(new Date())
                 .expirationTime(new Date(
@@ -156,4 +194,23 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
             throw new RuntimeException(e);
         }
     }
+    @Override
+    public void logout(LogoutRequest request) throws ParseException, JOSEException {
+        try {
+            var signToken = verifyToken(request.getToken(), true);
+
+            String jit = signToken.getJWTClaimsSet().getJWTID();
+            Date expiryTime = signToken.getJWTClaimsSet().getExpirationTime();
+
+            InvalidatedToken invalidatedToken = InvalidatedToken.builder()
+                    .id(jit)
+                    .expiryDate(expiryTime)
+                    .build();
+
+            invalidatedTokenRepository.save(invalidatedToken);
+        } catch (AppException e) {
+            log.info("Token already expired");
+        }
+    }
+
 }
