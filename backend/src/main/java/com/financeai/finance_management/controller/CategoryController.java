@@ -1,26 +1,45 @@
 package com.financeai.finance_management.controller;
 
 import com.financeai.finance_management.dto.request.CategoryCreationRequest;
+import com.financeai.finance_management.dto.request.CategoryFilterRequest;
 import com.financeai.finance_management.dto.request.CategoryUpdateRequest;
+import com.financeai.finance_management.dto.response.BasePaginationResponse;
+import com.financeai.finance_management.dto.response.BaseResponse;
 import com.financeai.finance_management.dto.response.CategoryResponse;
 import com.financeai.finance_management.service.ICategoryService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+
+@Tag(name = "Category APIs", description = "Grouped Category APIs")
 @RestController
-@RequestMapping("/categories")
+@RequestMapping("/api/v1/categories")
 @RequiredArgsConstructor
 public class CategoryController {
 
     private final ICategoryService categoryService;
 
+    @Operation(summary = "Create Category", description = "Create a Category information")
+    @ApiResponses(
+            value = {
+                    @ApiResponse(responseCode = "201", description = "Category created"),
+                    @ApiResponse(responseCode = "400", description = "Validation failed"),
+            })
     @PostMapping
-    public CategoryResponse createCategory(@RequestBody CategoryCreationRequest request) {
-        return categoryService.createCategory(request);
+    public ResponseEntity<BaseResponse<CategoryResponse>>createCategory(@RequestBody CategoryCreationRequest request) {
+        return ResponseEntity.ok(categoryService.createCategory(request));
     }
 
+
+    //TODO: Lanh handle lai theo style tren nha
     @PutMapping("/{id}")
     public CategoryResponse updateCategory(@PathVariable String id,
                                            @RequestBody CategoryUpdateRequest request) {
@@ -32,9 +51,16 @@ public class CategoryController {
         return categoryService.getCategoryById(id);
     }
 
+    @Operation(summary = "Get list categories", description = "Get list categories by filter")
+    @ApiResponses(
+            value = {
+                    @ApiResponse(responseCode = "200", description = "Has result, return categories."),
+                    @ApiResponse(responseCode = "400", description = "Validation failed, entity not found..."),
+            })
     @GetMapping
-    public List<CategoryResponse> getAllCategories() {
-        return categoryService.getAllCategories();
+    public ResponseEntity<BaseResponse<BasePaginationResponse<CategoryResponse>>>
+    getListCoursesByFilter(@ParameterObject CategoryFilterRequest request) {
+        return ResponseEntity.ok(this.categoryService.getAllCategories(request));
     }
 
     @GetMapping("/user/{userId}")
