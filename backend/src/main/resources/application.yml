@@ -34,8 +34,11 @@ vnpay:
 #      name: admin
 #      password: 123456
 jwt:
-  signerKey: "Fx4NoxybRRfHEk5J4Z12C45rxdfAcNGkMehTCQ1qrdY6B/Mw0Ie4E+36zVliXgWN\n"
+  signerKey: "5c823fbad6726aa54a234e222bcf044684310146aa90e096e676e1c217e568de"
   valid-duration: 3600 #in second
   refreshable-duration: 7200 #in second
 server:
-  port: 8080
+  url: http://localhost:8082
+  cors:
+    allowed-origins:*
+  port: 8082

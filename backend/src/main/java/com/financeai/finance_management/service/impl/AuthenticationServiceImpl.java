@@ -4,6 +4,7 @@ import com.financeai.finance_management.dto.request.AuthenticationRequest;
 import com.financeai.finance_management.dto.request.IntrospectRequest;
 import com.financeai.finance_management.dto.request.RefreshRequest;
 import com.financeai.finance_management.dto.response.AuthenticationResponse;
+import com.financeai.finance_management.dto.response.BaseResponse;
 import com.financeai.finance_management.dto.response.IntrospectResponse;
 import com.financeai.finance_management.entity.InvalidatedToken;
 import com.financeai.finance_management.entity.User;
@@ -76,17 +77,18 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
     }
 
     @Override
-    public AuthenticationResponse authenticate(AuthenticationRequest request) {
+    public BaseResponse<AuthenticationResponse> authenticate(AuthenticationRequest request) {
         var user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
         PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
         boolean authenticated =  passwordEncoder.matches(request.getPassword(), user.getPassword());
         if(!authenticated) throw new AppException(ErrorCode.UNAUTHENTICATED);
         var token = generateToken(user);
-        return AuthenticationResponse.builder()
+        log.info("asdasd: {}", token);
+        return BaseResponse.ok(AuthenticationResponse.builder()
                 .token(token)
                 .authenticated(true)
-                .build();
+                .build());
     }
 
     @Override

@@ -1,17 +1,16 @@
 package com.financeai.finance_management.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import com.financeai.finance_management.enums.BudgetType;
+import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
 
 @Entity
 @Table(name = "budgets")
-@Builder
+@Builder(toBuilder = true)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -32,8 +31,10 @@ public class Budget extends BaseEntity {
     @Column(name = "name", nullable = false)
     private String name;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false, length = 20)
-    private String type; // LIMIT, SAVING
+    @Builder.Default
+    private BudgetType type = BudgetType.LIMIT;
 
     @Builder.Default
     @Column(name = "target_amount", nullable = false, precision = 19, scale = 4)
