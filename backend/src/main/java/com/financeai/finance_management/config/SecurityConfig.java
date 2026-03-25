@@ -31,7 +31,9 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
         httpSecurity.authorizeHttpRequests(request ->
-                request.requestMatchers(HttpMethod.POST, PUBLIC_ENPOINTS).permitAll()
+                request
+                        //.requestMatchers("/categories/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, PUBLIC_ENPOINTS).permitAll()
                         .requestMatchers(HttpMethod.GET, PUBLIC_ENPOINTS_FOR_GET).permitAll()
                         .anyRequest().authenticated()
                 );
