@@ -1,8 +1,6 @@
 package com.financeai.finance_management.service;
 
-import com.financeai.finance_management.dto.request.AuthenticationRequest;
-import com.financeai.finance_management.dto.request.IntrospectRequest;
-import com.financeai.finance_management.dto.request.RefreshRequest;
+import com.financeai.finance_management.dto.request.*;
 import com.financeai.finance_management.dto.response.AuthenticationResponse;
 import com.financeai.finance_management.dto.response.IntrospectResponse;
 import com.financeai.finance_management.entity.User;
@@ -21,4 +19,7 @@ public interface IAuthenticationService {
     SignedJWT verifyToken(String token, boolean isRefresh) throws ParseException, JOSEException;
 
     String generateToken(User user);
+
+    AuthenticationResponse register(RegisterRequest request);
+    void logout(LogoutRequest request) throws java.text.ParseException, com.nimbusds.jose.JOSEException;
 }
