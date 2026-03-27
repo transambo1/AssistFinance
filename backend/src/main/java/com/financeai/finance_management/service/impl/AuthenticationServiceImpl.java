@@ -30,6 +30,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -220,5 +221,33 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
             log.info("Token already expired");
         }
     }
+    @Override
+    public User getMyInfo() {
+        // 1. Lấy thông tin từ SecurityContext (Token đã được giải mã ở CustomJwtDecoder)
+        var context = org.springframework.security.core.context.SecurityContextHolder.getContext();
+        String name = context.getAuthentication().getName(); // Đây chính là username bạn đặt trong .subject()
 
+        // 2. Tìm User trong DB dựa trên username đó
+        return userRepository.findByUsername(name)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+    }
+
+    @Override
+    public User updateMyInfo(UserUpdateRequest request) {
+        var context = SecurityContextHolder.getContext();
+        String username = context.getAuthentication().getName();
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+
+        user.setFullName(request.getFullName());
+        user.setDisplayName(request.getDisplayName());
+        user.setEmail(request.getEmail());
+        user.setPhone(request.getPhone());
+        user.setPhotoUrl(request.getPhotoUrl());
+
+
+        return userRepository.save(user);
+    }
 }
