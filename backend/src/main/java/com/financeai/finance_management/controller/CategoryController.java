@@ -73,38 +73,6 @@ public class CategoryController {
         return ResponseEntity.ok(categoryService.getAllCategories(request));
     }
 
-    @Operation(summary = "Get Categories By User Id", description = "Get all categories of a specific user")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Categories retrieved successfully")
-    })
-    @GetMapping("/user/{userId}")
-    public ResponseEntity<BaseResponse<List<CategoryResponse>>> getCategoriesByUserId(
-            @PathVariable String userId) {
-        return ResponseEntity.ok(categoryService.getCategoriesByUserId(userId));
-    }
-
-    @Operation(summary = "Get Categories By Type", description = "Get categories by type of a specific user")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Categories retrieved successfully")
-    })
-    @GetMapping("/user/{userId}/type/{type}")
-    public ResponseEntity<BaseResponse<List<CategoryResponse>>> getCategoriesByType(
-            @PathVariable String userId,
-            @PathVariable String type) {
-        return ResponseEntity.ok(categoryService.getCategoriesByType(userId, type));
-    }
-
-    @Operation(summary = "Get Available Categories", description = "Get available categories by type of a specific user")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Available categories retrieved successfully")
-    })
-    @GetMapping("/user/{userId}/available/{type}")
-    public ResponseEntity<BaseResponse<List<CategoryResponse>>> getAvailableCategories(
-            @PathVariable String userId,
-            @PathVariable String type) {
-        return ResponseEntity.ok(categoryService.getAvailableCategories(userId, type));
-    }
-
     @Operation(summary = "Archive Category", description = "Archive a category")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Category archived successfully"),
@@ -131,10 +99,8 @@ public class CategoryController {
             @ApiResponse(responseCode = "404", description = "Category not found")
     })
     @DeleteMapping("/{id}")
-    public ResponseEntity<BaseResponse<String>> softDeleteCategory(
-            @PathVariable String id,
-            @RequestParam String userId) {
-        return ResponseEntity.ok(categoryService.softDeleteCategory(id, userId));
+    public ResponseEntity<BaseResponse<String>> softDeleteCategory(@PathVariable String id) {
+        return ResponseEntity.ok(categoryService.softDeleteCategory(id));
     }
 
     @Operation(summary = "Increase Usage Count", description = "Increase usage count of a category")

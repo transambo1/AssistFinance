@@ -19,17 +19,11 @@ public interface ICategoryService {
 
     BaseResponse<BasePaginationResponse<CategoryResponse>> getAllCategories(CategoryFilterRequest request);
 
-    BaseResponse<List<CategoryResponse>> getCategoriesByUserId(String userId);
-
-    BaseResponse<List<CategoryResponse>> getCategoriesByType(String userId, String type);
-
-    BaseResponse<List<CategoryResponse>> getAvailableCategories(String userId, String type);
-
     BaseResponse<String> archiveCategory(String id);
 
     BaseResponse<String> unarchiveCategory(String id);
 
-    BaseResponse<String> softDeleteCategory(String id, String userId);
+    BaseResponse<String> softDeleteCategory(String id);
 
     BaseResponse<String> increaseUsageCount(String id);
 }
