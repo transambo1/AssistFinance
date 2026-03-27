@@ -1,5 +1,6 @@
 package com.financeai.finance_management.dto.response;
 
+import com.financeai.finance_management.enums.CategoryType;
 import lombok.Builder;
 import lombok.Data;
 
@@ -9,7 +10,7 @@ public class CategoryResponse {
     private String id;
     private String userId;
     private String name;
-    private String type;
+    private CategoryType type;
     private String icon;
     private String color;
     private boolean isArchived;

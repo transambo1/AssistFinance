@@ -1,9 +1,7 @@
 package com.financeai.finance_management.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import com.financeai.finance_management.enums.CategoryType;
+import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.SQLRestriction;
 @Entity
@@ -20,14 +18,17 @@ public class Category extends BaseEntity {
     @Column(name = "id", nullable = false)
     private String id;
 
-    @Column(name = "user_id", nullable = false)
-    private String userId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
     @Column(name = "name", nullable = false)
     private String name;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false, length = 50)
-    private String type;
+    @Builder.Default
+    private CategoryType type = CategoryType.EXPENSE;
 
     @Column(name = "icon", length = 100)
     private String icon;
