@@ -100,14 +100,14 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
 
         String jit = signToken.getJWTClaimsSet().getJWTID();
         Date expiryTime = signToken.getJWTClaimsSet().getExpirationTime();
-        String username = signToken.getJWTClaimsSet().getSubject();
+        String userId = signToken.getJWTClaimsSet().getSubject();
         InvalidatedToken invalidatedToken = InvalidatedToken.builder()
                 .id(jit)
                 .expiryDate(expiryTime)
                 .build();
         invalidatedTokenRepository.save(invalidatedToken);
 
-        var user = userRepository.findByUsername(username).orElseThrow(
+        var user = userRepository.findByUsername(userId).orElseThrow(
                 () -> new AppException(ErrorCode.USER_NOT_EXISTED)
         );
 
@@ -187,7 +187,7 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
     public String generateToken(User user) {
         JWSHeader header = new JWSHeader(JWSAlgorithm.HS512);
         JWTClaimsSet jwtClaimsSet = new JWTClaimsSet.Builder()
-                .subject(user.getUsername())
+                .subject(user.getId())
                 .issuer("fast-food.com")
                 .issueTime(new Date())
                 .expirationTime(new Date(
@@ -229,10 +229,10 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
     public BaseResponse<UserResponse> getMyInfo() {
         // 1. Lấy username từ SecurityContext
         var context = SecurityContextHolder.getContext();
-        String name = context.getAuthentication().getName();
+        String userId = context.getAuthentication().getName();
 
         // 2. Tìm User trong DB
-        User user = userRepository.findByUsername(name)
+        User user = userRepository.findByUsername(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
         // 3. Map sang DTO và bọc vào BaseResponse
@@ -244,10 +244,10 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
     public BaseResponse<UserResponse> updateMyInfo(UserUpdateRequest request) {
         // 1. Lấy username từ SecurityContext
         var context = SecurityContextHolder.getContext();
-        String username = context.getAuthentication().getName();
+        String userId = context.getAuthentication().getName();
 
         // 2. Tìm User
-        User user = userRepository.findByUsername(username)
+        User user = userRepository.findByUsername(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
         // 3. Cập nhật thông tin
