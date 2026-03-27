@@ -188,7 +188,6 @@ public class CategoryServiceImpl implements ICategoryService {
     @Override
     @Transactional(readOnly = true)
     public BaseResponse<BasePaginationResponse<CategoryResponse>> getAllCategories(CategoryFilterRequest request) {
-    public BaseResponse<BasePaginationResponse<CategoryResponse>> getAllCategories(CategoryFilterRequest request){
         Specification<Category> spec = request.specification();
         Pageable pageable = request.pageable();
 
