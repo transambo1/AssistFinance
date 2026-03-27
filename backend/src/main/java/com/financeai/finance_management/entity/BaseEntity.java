@@ -32,9 +32,9 @@ public abstract class BaseEntity {
   @Column(name = "deleted_at")
   protected Long deletedAt;
 
-  @Version
-  @Column(name = "version", nullable = false)
-  protected int version;
+//  @Version
+//  @Column(name = "version", nullable = false)
+//  protected int version;
 
   @PrePersist
   protected void prePersist() {

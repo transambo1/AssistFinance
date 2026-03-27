@@ -18,7 +18,8 @@ public class BudgetResponse {
     private BudgetType type;
     private BigDecimal targetAmount;
     private BigDecimal currentAmount;
-    private String monthYear;
+    private Integer month;
+    private Integer year;
     private boolean isActive;
     private Long createdAt;
     private Long updatedAt;

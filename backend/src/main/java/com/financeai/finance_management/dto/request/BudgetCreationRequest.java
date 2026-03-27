@@ -9,10 +9,12 @@ import java.math.BigDecimal;
 @Getter
 @Setter
 public class BudgetCreationRequest {
+    private String userId;
     private String name;
     private BigDecimal targetAmount;
     private BigDecimal currentAmount;
     private BudgetType type;
     private String categoryId;
-    private String monthYear;
+    private Integer month;
+    private Integer year;
 }

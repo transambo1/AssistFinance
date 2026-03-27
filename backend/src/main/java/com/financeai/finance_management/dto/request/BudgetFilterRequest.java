@@ -14,7 +14,8 @@ public class BudgetFilterRequest extends FilterRequest<Budget> {
     private String userId;
     private String categoryId;
     private BudgetType type;
-    private String monthYear;
+    private Integer month;
+    private Integer year;
     private Boolean isActive;
 
     @Override
@@ -24,7 +25,7 @@ public class BudgetFilterRequest extends FilterRequest<Budget> {
                 .withUserId(getUserId())
                 .withCategoryId(getCategoryId())
                 .withType(getType())
-                .withMonthYear(getMonthYear())
+                .withMonthAndYear(getMonth(), getYear())
                 .withActive(getIsActive())
                 .build();
     }
