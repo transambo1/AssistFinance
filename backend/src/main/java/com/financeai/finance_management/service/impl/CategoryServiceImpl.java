@@ -7,10 +7,12 @@ import com.financeai.finance_management.dto.response.BasePaginationResponse;
 import com.financeai.finance_management.dto.response.BaseResponse;
 import com.financeai.finance_management.dto.response.CategoryResponse;
 import com.financeai.finance_management.entity.Category;
+import com.financeai.finance_management.entity.User;
 import com.financeai.finance_management.enums.CategoryType;
 import com.financeai.finance_management.exception.exception.AppException;
 import com.financeai.finance_management.exception.exception.ErrorCode;
 import com.financeai.finance_management.repository.CategoryRepository;
+import com.financeai.finance_management.repository.UserRepository;
 import com.financeai.finance_management.service.ICategoryService;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +20,9 @@ import lombok.experimental.FieldDefaults;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +37,7 @@ import java.util.UUID;
 public class CategoryServiceImpl implements ICategoryService {
 
     CategoryRepository categoryRepository;
+    UserRepository userRepository;
 
     @Override
     public void createDefaultCategories(String userId) {
@@ -48,7 +54,7 @@ public class CategoryServiceImpl implements ICategoryService {
                         .id(UUID.randomUUID().toString())
                         .userId(userId.trim())
                         .name("Ăn uống")
-                        .type("EXPENSE")
+                        .type(CategoryType.EXPENSE.name())
                         .icon("food")
                         .color("#FF6B6B")
                         .isArchived(false)
@@ -59,7 +65,7 @@ public class CategoryServiceImpl implements ICategoryService {
                         .id(UUID.randomUUID().toString())
                         .userId(userId.trim())
                         .name("Di chuyển")
-                        .type("EXPENSE")
+                        .type(CategoryType.EXPENSE.name())
                         .icon("car")
                         .color("#4ECDC4")
                         .isArchived(false)
@@ -70,7 +76,7 @@ public class CategoryServiceImpl implements ICategoryService {
                         .id(UUID.randomUUID().toString())
                         .userId(userId.trim())
                         .name("Giải trí")
-                        .type("EXPENSE")
+                        .type(CategoryType.EXPENSE.name())
                         .icon("game")
                         .color("#1A535C")
                         .isArchived(false)
@@ -81,7 +87,7 @@ public class CategoryServiceImpl implements ICategoryService {
                         .id(UUID.randomUUID().toString())
                         .userId(userId.trim())
                         .name("Lương")
-                        .type("INCOME")
+                        .type(CategoryType.INCOME.name())
                         .icon("salary")
                         .color("#2ECC71")
                         .isArchived(false)
@@ -92,7 +98,7 @@ public class CategoryServiceImpl implements ICategoryService {
                         .id(UUID.randomUUID().toString())
                         .userId(userId.trim())
                         .name("Thưởng")
-                        .type("INCOME")
+                        .type(CategoryType.INCOME.name())
                         .icon("bonus")
                         .color("#27AE60")
                         .isArchived(false)
@@ -107,7 +113,7 @@ public class CategoryServiceImpl implements ICategoryService {
     public BaseResponse<CategoryResponse> createCategory(CategoryCreationRequest request) {
         validateCreateRequest(request);
 
-        CategoryType categoryType = parseCategoryType(request.getType());
+        CategoryType categoryType = request.getType();
 
         boolean existed = categoryRepository.existsByUserIdAndNameAndType(
                 request.getUserId().trim(),
@@ -140,8 +146,8 @@ public class CategoryServiceImpl implements ICategoryService {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
-        Category category = categoryRepository.findById(id.trim())
-                .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
+        Category category = getCategoryOrThrow(id);
+        checkCategoryOwnership(category);
 
         if (request.getName() != null) {
             String name = request.getName().trim();
@@ -152,8 +158,7 @@ public class CategoryServiceImpl implements ICategoryService {
         }
 
         if (request.getType() != null) {
-            CategoryType categoryType = parseCategoryType(request.getType());
-            category.setType(categoryType.name());
+            category.setType(request.getType().name());
         }
 
         if (request.getIcon() != null) {
@@ -175,12 +180,8 @@ public class CategoryServiceImpl implements ICategoryService {
     @Override
     @Transactional(readOnly = true)
     public BaseResponse<CategoryResponse> getCategoryById(String id) {
-        if (id == null || id.isBlank()) {
-            throw new AppException(ErrorCode.INVALID_REQUEST);
-        }
-
-        Category category = categoryRepository.findById(id.trim())
-                .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
+        Category category = getCategoryOrThrow(id);
+        checkCategoryOwnership(category);
 
         return BaseResponse.ok(mapToResponse(category));
     }
@@ -188,6 +189,9 @@ public class CategoryServiceImpl implements ICategoryService {
     @Override
     @Transactional(readOnly = true)
     public BaseResponse<BasePaginationResponse<CategoryResponse>> getAllCategories(CategoryFilterRequest request) {
+        String currentUserId = getCurrentUserId();
+        request.setUserId(currentUserId);
+
         Specification<Category> spec = request.specification();
         Pageable pageable = request.pageable();
 
@@ -198,63 +202,9 @@ public class CategoryServiceImpl implements ICategoryService {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public BaseResponse<List<CategoryResponse>> getCategoriesByUserId(String userId) {
-        if (userId == null || userId.isBlank()) {
-            throw new AppException(ErrorCode.INVALID_REQUEST);
-        }
-
-        List<CategoryResponse> responses = categoryRepository.findByUserId(userId.trim())
-                .stream()
-                .map(this::mapToResponse)
-                .toList();
-
-        return BaseResponse.ok(responses);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public BaseResponse<List<CategoryResponse>> getCategoriesByType(String userId, String type) {
-        if (userId == null || userId.isBlank()) {
-            throw new AppException(ErrorCode.INVALID_REQUEST);
-        }
-
-        CategoryType categoryType = parseCategoryType(type);
-
-        List<CategoryResponse> responses = categoryRepository.findByUserIdAndType(userId.trim(), categoryType.name())
-                .stream()
-                .map(this::mapToResponse)
-                .toList();
-
-        return BaseResponse.ok(responses);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public BaseResponse<List<CategoryResponse>> getAvailableCategories(String userId, String type) {
-        if (userId == null || userId.isBlank()) {
-            throw new AppException(ErrorCode.INVALID_REQUEST);
-        }
-
-        CategoryType categoryType = parseCategoryType(type);
-
-        List<CategoryResponse> responses = categoryRepository
-                .findByUserIdAndTypeAndIsArchivedFalseAndIsActiveTrue(userId.trim(), categoryType.name())
-                .stream()
-                .map(this::mapToResponse)
-                .toList();
-
-        return BaseResponse.ok(responses);
-    }
-
-    @Override
     public BaseResponse<String> archiveCategory(String id) {
-        if (id == null || id.isBlank()) {
-            throw new AppException(ErrorCode.INVALID_REQUEST);
-        }
-
-        Category category = categoryRepository.findById(id.trim())
-                .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
+        Category category = getCategoryOrThrow(id);
+        checkCategoryOwnership(category);
 
         category.setArchived(true);
         categoryRepository.save(category);
@@ -264,12 +214,8 @@ public class CategoryServiceImpl implements ICategoryService {
 
     @Override
     public BaseResponse<String> unarchiveCategory(String id) {
-        if (id == null || id.isBlank()) {
-            throw new AppException(ErrorCode.INVALID_REQUEST);
-        }
-
-        Category category = categoryRepository.findById(id.trim())
-                .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
+        Category category = getCategoryOrThrow(id);
+        checkCategoryOwnership(category);
 
         category.setArchived(false);
         categoryRepository.save(category);
@@ -278,17 +224,9 @@ public class CategoryServiceImpl implements ICategoryService {
     }
 
     @Override
-    public BaseResponse<String> softDeleteCategory(String id, String userId) {
-        if (id == null || id.isBlank() || userId == null || userId.isBlank()) {
-            throw new AppException(ErrorCode.INVALID_REQUEST);
-        }
-
-        Category category = categoryRepository.findById(id.trim())
-                .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
-
-        if (!category.getUserId().equals(userId.trim())) {
-            throw new AppException(ErrorCode.UNAUTHORIZED);
-        }
+    public BaseResponse<String> softDeleteCategory(String id) {
+        Category category = getCategoryOrThrow(id);
+        checkCategoryOwnership(category);
 
         category.setDeletedAt(Instant.now().toEpochMilli());
         category.deactivate();
@@ -300,12 +238,8 @@ public class CategoryServiceImpl implements ICategoryService {
 
     @Override
     public BaseResponse<String> increaseUsageCount(String id) {
-        if (id == null || id.isBlank()) {
-            throw new AppException(ErrorCode.INVALID_REQUEST);
-        }
-
-        Category category = categoryRepository.findById(id.trim())
-                .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
+        Category category = getCategoryOrThrow(id);
+        checkCategoryOwnership(category);
 
         Integer currentUsage = category.getUsageCount() == null ? 0 : category.getUsageCount();
         category.setUsageCount(currentUsage + 1);
@@ -328,15 +262,7 @@ public class CategoryServiceImpl implements ICategoryService {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
-        if (request.getType() == null || request.getType().trim().isEmpty()) {
-            throw new AppException(ErrorCode.INVALID_REQUEST);
-        }
-    }
-
-    private CategoryType parseCategoryType(String type) {
-        try {
-            return CategoryType.valueOf(type.trim().toUpperCase());
-        } catch (Exception e) {
+        if (request.getType() == null) {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
     }
@@ -345,8 +271,44 @@ public class CategoryServiceImpl implements ICategoryService {
         if (value == null) {
             return null;
         }
+
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String getCurrentUsername() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || !(authentication.getPrincipal() instanceof Jwt jwt)) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        return jwt.getSubject();
+    }
+
+    private String getCurrentUserId() {
+        String username = getCurrentUsername();
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        return user.getId();
+    }
+
+    private Category getCategoryOrThrow(String id) {
+        if (id == null || id.isBlank()) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
+
+        return categoryRepository.findById(id.trim())
+                .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
+    }
+
+    private void checkCategoryOwnership(Category category) {
+        String currentUserId = getCurrentUserId();
+        if (!category.getUserId().equals(currentUserId)) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
     }
 
     private CategoryResponse mapToResponse(Category category) {

@@ -51,7 +51,6 @@ public class SecurityConfig {
         httpSecurity.authorizeHttpRequests(request ->
                 request
                         .requestMatchers(SWAGGER_WHITELIST).permitAll()
-                        //.requestMatchers("/categories/**").permitAll()
                         .requestMatchers(HttpMethod.POST, PUBLIC_ENPOINTS).permitAll()
                         .requestMatchers(HttpMethod.GET, PUBLIC_ENPOINTS_FOR_GET).permitAll()
                         .anyRequest().authenticated()
