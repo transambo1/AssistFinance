@@ -23,4 +23,8 @@ public interface IAuthenticationService {
 
     AuthenticationResponse register(RegisterRequest request);
     void logout(LogoutRequest request) throws java.text.ParseException, com.nimbusds.jose.JOSEException;
+
+    User getMyInfo();
+    User updateMyInfo(UserUpdateRequest request);
 }
+
