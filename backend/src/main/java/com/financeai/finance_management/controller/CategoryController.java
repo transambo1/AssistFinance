@@ -27,30 +27,38 @@ public class CategoryController {
 
     private final ICategoryService categoryService;
 
-    @Operation(summary = "Create Category", description = "Create a Category information")
-    @ApiResponses(
-            value = {
-                    @ApiResponse(responseCode = "201", description = "Category created"),
-                    @ApiResponse(responseCode = "400", description = "Validation failed"),
-            })
     @PostMapping
     public ResponseEntity<BaseResponse<CategoryResponse>>createCategory(@RequestBody CategoryCreationRequest request) {
         return ResponseEntity.ok(categoryService.createCategory(request));
     }
 
-
-    //TODO: Lanh handle lai theo style tren nha
     @PutMapping("/{id}")
-    public CategoryResponse updateCategory(@PathVariable String id,
-                                           @RequestBody CategoryUpdateRequest request) {
-        return categoryService.updateCategory(id, request);
+    public ResponseEntity<BaseResponse<CategoryResponse>> updateCategory(
+            @PathVariable String id,
+            @RequestBody CategoryUpdateRequest request) {
+        return ResponseEntity.ok(categoryService.updateCategory(id, request));
     }
 
+    @Operation(summary = "Get Category By Id", description = "Get category detail by id")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Category found"),
+            @ApiResponse(responseCode = "404", description = "Category not found")
+    })
     @GetMapping("/{id}")
-    public CategoryResponse getCategoryById(@PathVariable String id) {
-        return categoryService.getCategoryById(id);
+    public ResponseEntity<BaseResponse<CategoryResponse>> getCategoryById(@PathVariable String id) {
+        return ResponseEntity.ok(categoryService.getCategoryById(id));
     }
 
+    @Operation(summary = "Get list categories", description = "Get list categories by filter")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Has result, return categories"),
+            @ApiResponse(responseCode = "400", description = "Validation failed, entity not found")
+    })
+    @GetMapping
+    public ResponseEntity<BaseResponse<BasePaginationResponse<CategoryResponse>>> getListCategoriesByFilter(
+            @ParameterObject CategoryFilterRequest request) {
+        return ResponseEntity.ok(categoryService.getAllCategories(request));
+      
     @Operation(summary = "Get list categories", description = "Get list categories by filter")
     @ApiResponses(
             value = {
@@ -61,47 +69,80 @@ public class CategoryController {
     public ResponseEntity<BaseResponse<BasePaginationResponse<CategoryResponse>>>
     getListCoursesByFilter(@ParameterObject CategoryFilterRequest request) {
         return ResponseEntity.ok(this.categoryService.getAllCategories(request));
+
     }
 
+    @Operation(summary = "Get Categories By User Id", description = "Get all categories of a specific user")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Categories retrieved successfully")
+    })
     @GetMapping("/user/{userId}")
-    public List<CategoryResponse> getCategoriesByUserId(@PathVariable String userId) {
-        return categoryService.getCategoriesByUserId(userId);
+    public ResponseEntity<BaseResponse<List<CategoryResponse>>> getCategoriesByUserId(
+            @PathVariable String userId) {
+        return ResponseEntity.ok(categoryService.getCategoriesByUserId(userId));
     }
 
+    @Operation(summary = "Get Categories By Type", description = "Get categories by type of a specific user")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Categories retrieved successfully")
+    })
     @GetMapping("/user/{userId}/type/{type}")
-    public List<CategoryResponse> getCategoriesByType(@PathVariable String userId,
-                                                      @PathVariable String type) {
-        return categoryService.getCategoriesByType(userId, type);
+    public ResponseEntity<BaseResponse<List<CategoryResponse>>> getCategoriesByType(
+            @PathVariable String userId,
+            @PathVariable String type) {
+        return ResponseEntity.ok(categoryService.getCategoriesByType(userId, type));
     }
 
+    @Operation(summary = "Get Available Categories", description = "Get available categories by type of a specific user")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Available categories retrieved successfully")
+    })
     @GetMapping("/user/{userId}/available/{type}")
-    public List<CategoryResponse> getAvailableCategories(@PathVariable String userId,
-                                                         @PathVariable String type) {
-        return categoryService.getAvailableCategories(userId, type);
+    public ResponseEntity<BaseResponse<List<CategoryResponse>>> getAvailableCategories(
+            @PathVariable String userId,
+            @PathVariable String type) {
+        return ResponseEntity.ok(categoryService.getAvailableCategories(userId, type));
     }
 
+    @Operation(summary = "Archive Category", description = "Archive a category")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Category archived successfully"),
+            @ApiResponse(responseCode = "404", description = "Category not found")
+    })
     @PatchMapping("/{id}/archive")
-    public String archiveCategory(@PathVariable String id) {
-        categoryService.archiveCategory(id);
-        return "Category archived successfully";
+    public ResponseEntity<BaseResponse<String>> archiveCategory(@PathVariable String id) {
+        return ResponseEntity.ok(categoryService.archiveCategory(id));
     }
 
+    @Operation(summary = "Unarchive Category", description = "Unarchive a category")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Category unarchived successfully"),
+            @ApiResponse(responseCode = "404", description = "Category not found")
+    })
     @PatchMapping("/{id}/unarchive")
-    public String unarchiveCategory(@PathVariable String id) {
-        categoryService.unarchiveCategory(id);
-        return "Category unarchived successfully";
+    public ResponseEntity<BaseResponse<String>> unarchiveCategory(@PathVariable String id) {
+        return ResponseEntity.ok(categoryService.unarchiveCategory(id));
     }
 
+    @Operation(summary = "Soft Delete Category", description = "Soft delete a category")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Category deleted successfully"),
+            @ApiResponse(responseCode = "404", description = "Category not found")
+    })
     @DeleteMapping("/{id}")
-    public String softDeleteCategory(@PathVariable String id,
-                                     @RequestParam String userId) {
-        categoryService.softDeleteCategory(id, userId);
-        return "Category deleted successfully";
+    public ResponseEntity<BaseResponse<String>> softDeleteCategory(
+            @PathVariable String id,
+            @RequestParam String userId) {
+        return ResponseEntity.ok(categoryService.softDeleteCategory(id, userId));
     }
 
+    @Operation(summary = "Increase Usage Count", description = "Increase usage count of a category")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Category usage count increased successfully"),
+            @ApiResponse(responseCode = "404", description = "Category not found")
+    })
     @PatchMapping("/{id}/increase-usage")
-    public String increaseUsageCount(@PathVariable String id) {
-        categoryService.increaseUsageCount(id);
-        return "Category usage count increased";
+    public ResponseEntity<BaseResponse<String>> increaseUsageCount(@PathVariable String id) {
+        return ResponseEntity.ok(categoryService.increaseUsageCount(id));
     }
 }

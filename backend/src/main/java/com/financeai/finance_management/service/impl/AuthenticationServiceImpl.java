@@ -12,6 +12,7 @@ import com.financeai.finance_management.exception.exception.ErrorCode;
 import com.financeai.finance_management.repository.InvalidatedTokenRepository;
 import com.financeai.finance_management.repository.UserRepository;
 import com.financeai.finance_management.service.IAuthenticationService;
+import com.financeai.finance_management.service.ICategoryService;
 import com.nimbusds.jose.*;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.MACVerifier;
@@ -48,6 +49,7 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
     UserRepository userRepository;
     InvalidatedTokenRepository invalidatedTokenRepository;
     private static final List<String> SEARCH_FIELDS = List.of("fullname");
+    private final ICategoryService categoryService;
 
     @NonFinal
     @Value("${jwt.signerKey}")
@@ -134,6 +136,26 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
                 .currentBalance(java.math.BigDecimal.ZERO) // Set giá trị mặc định cho an toàn
                 .build();
 
+        // 2. Mã hóa mật khẩu
+        PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
+        String encodedPassword = passwordEncoder.encode(request.getPassword());
+
+        // 3. Tạo user mới (Phải có ID và đúng tên field fullName)
+        User newUser = User.builder()
+                .id(String.valueOf(IdGenerator.generateRandomId())) // BẮT BUỘC phải có dòng này vì Entity không tự sinh ID
+                .username(request.getUsername())
+                .password(encodedPassword)
+                .fullName(request.getFullName()) // Khớp với biến fullName trong Entity
+                .email(request.getEmail())
+                .currentBalance(java.math.BigDecimal.ZERO) // Set giá trị mặc định cho an toàn
+                .build();
+
+        User savedUser = userRepository.save(newUser);
+        categoryService.createDefaultCategories(savedUser.getId());
+
+
+        // 4. Tự động đăng nhập
+        String token = generateToken(savedUser);
         userRepository.save(newUser);
 
         // 4. Tự động đăng nhập
@@ -144,6 +166,7 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
                 .authenticated(true)
                 .build();
     }
+
     @Override
     public SignedJWT verifyToken(String token, boolean isRefresh) throws ParseException, JOSEException {
         JWSVerifier verifier = new MACVerifier(SIGNER_KEY.getBytes());

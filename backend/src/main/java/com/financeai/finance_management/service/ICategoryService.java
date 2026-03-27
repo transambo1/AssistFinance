@@ -13,23 +13,25 @@ public interface ICategoryService {
     void createDefaultCategories(String userId);
     BaseResponse<CategoryResponse> createCategory(CategoryCreationRequest request);
 
-    CategoryResponse updateCategory(String id, CategoryUpdateRequest request);
+    BaseResponse<CategoryResponse> createCategory(CategoryCreationRequest request);
 
-    CategoryResponse getCategoryById(String id);
+    BaseResponse<CategoryResponse> updateCategory(String id, CategoryUpdateRequest request);
+
+    BaseResponse<CategoryResponse> getCategoryById(String id);
 
     BaseResponse<BasePaginationResponse<CategoryResponse>> getAllCategories(CategoryFilterRequest request);
 
-    List<CategoryResponse> getCategoriesByUserId(String userId);
+    BaseResponse<List<CategoryResponse>> getCategoriesByUserId(String userId);
 
-    List<CategoryResponse> getCategoriesByType(String userId, String type);
+    BaseResponse<List<CategoryResponse>> getCategoriesByType(String userId, String type);
 
-    List<CategoryResponse> getAvailableCategories(String userId, String type);
+    BaseResponse<List<CategoryResponse>> getAvailableCategories(String userId, String type);
 
-    void archiveCategory(String id);
+    BaseResponse<String> archiveCategory(String id);
 
-    void unarchiveCategory(String id);
+    BaseResponse<String> unarchiveCategory(String id);
 
-    void softDeleteCategory(String id, String userId);
+    BaseResponse<String> softDeleteCategory(String id, String userId);
 
-    void increaseUsageCount(String id);
+    BaseResponse<String> increaseUsageCount(String id);
 }
