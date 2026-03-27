@@ -1,6 +1,7 @@
 package com.financeai.finance_management.repository;
 
 import com.financeai.finance_management.entity.Category;
+import com.financeai.finance_management.enums.CategoryType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
@@ -16,5 +17,5 @@ public interface CategoryRepository extends JpaRepository<Category, String>, Jpa
 
     List<Category> findByUserIdAndTypeAndIsArchivedFalseAndIsActiveTrue(String userId, String type);
 
-    boolean existsByUserIdAndNameAndType(String userId, String name, String type);
+    boolean existsByUserIdAndNameAndType(String userId, String name, CategoryType type);
 }
