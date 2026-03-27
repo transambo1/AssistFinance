@@ -8,7 +8,6 @@ import com.financeai.finance_management.dto.response.BaseResponse;
 import com.financeai.finance_management.dto.response.CategoryResponse;
 import com.financeai.finance_management.entity.Category;
 import com.financeai.finance_management.entity.User;
-import com.financeai.finance_management.enums.CategoryType;
 import com.financeai.finance_management.exception.exception.AppException;
 import com.financeai.finance_management.exception.exception.ErrorCode;
 import com.financeai.finance_management.repository.CategoryRepository;
@@ -22,7 +21,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,7 +55,7 @@ public class CategoryServiceImpl implements ICategoryService {
                         .id(UUID.randomUUID().toString())
                         .user(user)
                         .name("Ăn uống")
-                        .type(CategoryType.EXPENSE)
+                        .type(com.financeai.finance_management.enums.CategoryType.EXPENSE)
                         .icon("food")
                         .color("#FF6B6B")
                         .isArchived(false)
@@ -68,7 +66,7 @@ public class CategoryServiceImpl implements ICategoryService {
                         .id(UUID.randomUUID().toString())
                         .user(user)
                         .name("Di chuyển")
-                        .type(CategoryType.EXPENSE)
+                        .type(com.financeai.finance_management.enums.CategoryType.EXPENSE)
                         .icon("car")
                         .color("#4ECDC4")
                         .isArchived(false)
@@ -79,7 +77,7 @@ public class CategoryServiceImpl implements ICategoryService {
                         .id(UUID.randomUUID().toString())
                         .user(user)
                         .name("Giải trí")
-                        .type(CategoryType.EXPENSE)
+                        .type(com.financeai.finance_management.enums.CategoryType.EXPENSE)
                         .icon("game")
                         .color("#1A535C")
                         .isArchived(false)
@@ -90,7 +88,7 @@ public class CategoryServiceImpl implements ICategoryService {
                         .id(UUID.randomUUID().toString())
                         .user(user)
                         .name("Lương")
-                        .type(CategoryType.INCOME)
+                        .type(com.financeai.finance_management.enums.CategoryType.INCOME)
                         .icon("salary")
                         .color("#2ECC71")
                         .isArchived(false)
@@ -101,7 +99,7 @@ public class CategoryServiceImpl implements ICategoryService {
                         .id(UUID.randomUUID().toString())
                         .user(user)
                         .name("Thưởng")
-                        .type(CategoryType.INCOME)
+                        .type(com.financeai.finance_management.enums.CategoryType.INCOME)
                         .icon("bonus")
                         .color("#27AE60")
                         .isArchived(false)
@@ -116,13 +114,15 @@ public class CategoryServiceImpl implements ICategoryService {
     public BaseResponse<CategoryResponse> createCategory(CategoryCreationRequest request) {
         validateCreateRequest(request);
 
-        User user = userRepository.findById(request.getUserId().trim())
+        String currentUserId = getCurrentUserId().trim();
+
+        User user = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
         boolean existed = categoryRepository.existsByUserIdAndNameAndType(
-                request.getUserId().trim(),
+                currentUserId,
                 request.getName().trim(),
-                request.getType().name()
+                request.getType()
         );
 
         if (existed) {
@@ -258,10 +258,6 @@ public class CategoryServiceImpl implements ICategoryService {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
-        if (request.getUserId() == null || request.getUserId().trim().isEmpty()) {
-            throw new AppException(ErrorCode.INVALID_REQUEST);
-        }
-
         if (request.getName() == null || request.getName().trim().isEmpty()) {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
@@ -280,23 +276,14 @@ public class CategoryServiceImpl implements ICategoryService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    private String getCurrentUsername() {
+    private String getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        if (authentication == null || !(authentication.getPrincipal() instanceof Jwt jwt)) {
+        if (authentication == null || !authentication.isAuthenticated()) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
-        return jwt.getSubject();
-    }
-
-    private String getCurrentUserId() {
-        String username = getCurrentUsername();
-
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
-
-        return user.getId();
+        return authentication.getName();
     }
 
     private Category getCategoryOrThrow(String id) {
@@ -309,7 +296,7 @@ public class CategoryServiceImpl implements ICategoryService {
     }
 
     private void checkCategoryOwnership(Category category) {
-        String currentUserId = getCurrentUserId();
+        String currentUserId = getCurrentUserId().trim();
         if (!category.getUser().getId().equals(currentUserId)) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }

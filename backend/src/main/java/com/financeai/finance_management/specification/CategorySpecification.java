@@ -11,7 +11,6 @@ import java.util.Objects;
 
 public final class CategorySpecification {
     private static final String FIELD_NAME = "name";
-    private static final String FIELD_USER_ID = "userId";
     private static final String FIELD_TYPE = "type";
     private static final String FIELD_IS_ARCHIVED = "isArchived";
     private static final String FIELD_IS_ACTIVE = "isActive";
@@ -39,7 +38,7 @@ public final class CategorySpecification {
 
         specifications.add(
                 (root, query, cb) ->
-                        cb.equal(root.get(FIELD_USER_ID), userId.trim()));
+                        cb.equal(root.get("user").get("id"), userId.trim()));
 
         return this;
     }
@@ -49,7 +48,7 @@ public final class CategorySpecification {
 
         specifications.add(
                 (root, query, cb) ->
-                        cb.equal(root.get(FIELD_TYPE), type.name()));
+                        cb.equal(root.get(FIELD_TYPE), type));
 
         return this;
     }
