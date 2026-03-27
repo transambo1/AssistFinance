@@ -22,8 +22,9 @@ public class Budget extends BaseEntity {
     @Column(name = "id", nullable = false)
     private String id;
 
-    @Column(name = "user_id", nullable = false)
-    private String userId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
     @Column(name = "category_id")
     private String categoryId;

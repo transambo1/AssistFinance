@@ -45,6 +45,9 @@ public class CategoryServiceImpl implements ICategoryService {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
+        User user = userRepository.findById(userId.trim())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
         if (!categoryRepository.findByUserId(userId.trim()).isEmpty()) {
             return;
         }
@@ -52,9 +55,9 @@ public class CategoryServiceImpl implements ICategoryService {
         List<Category> defaultCategories = List.of(
                 Category.builder()
                         .id(UUID.randomUUID().toString())
-                        .userId(userId.trim())
+                        .user(user)
                         .name("Ăn uống")
-                        .type(CategoryType.EXPENSE.name())
+                        .type(CategoryType.EXPENSE)
                         .icon("food")
                         .color("#FF6B6B")
                         .isArchived(false)
@@ -63,9 +66,9 @@ public class CategoryServiceImpl implements ICategoryService {
 
                 Category.builder()
                         .id(UUID.randomUUID().toString())
-                        .userId(userId.trim())
+                        .user(user)
                         .name("Di chuyển")
-                        .type(CategoryType.EXPENSE.name())
+                        .type(CategoryType.EXPENSE)
                         .icon("car")
                         .color("#4ECDC4")
                         .isArchived(false)
@@ -74,9 +77,9 @@ public class CategoryServiceImpl implements ICategoryService {
 
                 Category.builder()
                         .id(UUID.randomUUID().toString())
-                        .userId(userId.trim())
+                        .user(user)
                         .name("Giải trí")
-                        .type(CategoryType.EXPENSE.name())
+                        .type(CategoryType.EXPENSE)
                         .icon("game")
                         .color("#1A535C")
                         .isArchived(false)
@@ -85,9 +88,9 @@ public class CategoryServiceImpl implements ICategoryService {
 
                 Category.builder()
                         .id(UUID.randomUUID().toString())
-                        .userId(userId.trim())
+                        .user(user)
                         .name("Lương")
-                        .type(CategoryType.INCOME.name())
+                        .type(CategoryType.INCOME)
                         .icon("salary")
                         .color("#2ECC71")
                         .isArchived(false)
@@ -96,9 +99,9 @@ public class CategoryServiceImpl implements ICategoryService {
 
                 Category.builder()
                         .id(UUID.randomUUID().toString())
-                        .userId(userId.trim())
+                        .user(user)
                         .name("Thưởng")
-                        .type(CategoryType.INCOME.name())
+                        .type(CategoryType.INCOME)
                         .icon("bonus")
                         .color("#27AE60")
                         .isArchived(false)
@@ -113,12 +116,13 @@ public class CategoryServiceImpl implements ICategoryService {
     public BaseResponse<CategoryResponse> createCategory(CategoryCreationRequest request) {
         validateCreateRequest(request);
 
-        CategoryType categoryType = request.getType();
+        User user = userRepository.findById(request.getUserId().trim())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
         boolean existed = categoryRepository.existsByUserIdAndNameAndType(
                 request.getUserId().trim(),
                 request.getName().trim(),
-                categoryType.name()
+                request.getType().name()
         );
 
         if (existed) {
@@ -127,9 +131,9 @@ public class CategoryServiceImpl implements ICategoryService {
 
         Category category = Category.builder()
                 .id(UUID.randomUUID().toString())
-                .userId(request.getUserId().trim())
+                .user(user)
                 .name(request.getName().trim())
-                .type(categoryType.name())
+                .type(request.getType())
                 .icon(normalize(request.getIcon()))
                 .color(normalize(request.getColor()))
                 .isArchived(false)
@@ -158,7 +162,7 @@ public class CategoryServiceImpl implements ICategoryService {
         }
 
         if (request.getType() != null) {
-            category.setType(request.getType().name());
+            category.setType(request.getType());
         }
 
         if (request.getIcon() != null) {
@@ -306,7 +310,7 @@ public class CategoryServiceImpl implements ICategoryService {
 
     private void checkCategoryOwnership(Category category) {
         String currentUserId = getCurrentUserId();
-        if (!category.getUserId().equals(currentUserId)) {
+        if (!category.getUser().getId().equals(currentUserId)) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
     }
@@ -314,7 +318,7 @@ public class CategoryServiceImpl implements ICategoryService {
     private CategoryResponse mapToResponse(Category category) {
         return CategoryResponse.builder()
                 .id(category.getId())
-                .userId(category.getUserId())
+                .userId(category.getUser().getId())
                 .name(category.getName())
                 .type(category.getType())
                 .icon(category.getIcon())
