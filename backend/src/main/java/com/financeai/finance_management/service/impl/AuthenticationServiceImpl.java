@@ -5,6 +5,7 @@ import com.financeai.finance_management.dto.request.*;
 import com.financeai.finance_management.dto.response.AuthenticationResponse;
 import com.financeai.finance_management.dto.response.BaseResponse;
 import com.financeai.finance_management.dto.response.IntrospectResponse;
+import com.financeai.finance_management.dto.response.UserResponse;
 import com.financeai.finance_management.entity.InvalidatedToken;
 import com.financeai.finance_management.entity.User;
 import com.financeai.finance_management.exception.exception.AppException;
@@ -118,16 +119,18 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
     }
     @Override
     public AuthenticationResponse register(RegisterRequest request) {
-        // 1. Kiểm tra username tồn tại
+
+        Optional<User> existingUser = userRepository.findByUsername(request.getUsername());
+
         if (userRepository.findByUsername(request.getUsername()).isPresent()) {
             throw new AppException(ErrorCode.USER_EXISTED);
         }
 
-        // 2. Mã hóa mật khẩu
+
         PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
         String encodedPassword = passwordEncoder.encode(request.getPassword());
 
-        // 3. Tạo user mới (Phải có ID và đúng tên field fullName)
+
         User newUser = User.builder()
                 .id(String.valueOf(IdGenerator.generateRandomId())) // BẮT BUỘC phải có dòng này vì Entity không tự sinh ID
                 .username(request.getUsername())
@@ -141,7 +144,7 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
         categoryService.createDefaultCategories(savedUser.getId());
 
 
-        // 4. Tự động đăng nhập
+
         String token = generateToken(savedUser);
         userRepository.save(newUser);
 
@@ -222,32 +225,52 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
         }
     }
     @Override
-    public User getMyInfo() {
-        // 1. Lấy thông tin từ SecurityContext (Token đã được giải mã ở CustomJwtDecoder)
-        var context = org.springframework.security.core.context.SecurityContextHolder.getContext();
-        String name = context.getAuthentication().getName(); // Đây chính là username bạn đặt trong .subject()
+    public BaseResponse<UserResponse> getMyInfo() {
+        // 1. Lấy username từ SecurityContext
+        var context = SecurityContextHolder.getContext();
+        String name = context.getAuthentication().getName();
 
-        // 2. Tìm User trong DB dựa trên username đó
-        return userRepository.findByUsername(name)
+        // 2. Tìm User trong DB
+        User user = userRepository.findByUsername(name)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        // 3. Map sang DTO và bọc vào BaseResponse
+        UserResponse userResponse = mapToUserResponse(user);
+        return BaseResponse.ok(userResponse);
     }
 
     @Override
-    public User updateMyInfo(UserUpdateRequest request) {
+    public BaseResponse<UserResponse> updateMyInfo(UserUpdateRequest request) {
+        // 1. Lấy username từ SecurityContext
         var context = SecurityContextHolder.getContext();
         String username = context.getAuthentication().getName();
 
+        // 2. Tìm User
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
-
+        // 3. Cập nhật thông tin
         user.setFullName(request.getFullName());
         user.setDisplayName(request.getDisplayName());
         user.setEmail(request.getEmail());
         user.setPhone(request.getPhone());
         user.setPhotoUrl(request.getPhotoUrl());
 
+        User savedUser = userRepository.save(user);
 
-        return userRepository.save(user);
+        return BaseResponse.ok(mapToUserResponse(savedUser));
+    }
+    private UserResponse mapToUserResponse(User user) {
+        return UserResponse.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .fullName(user.getFullName())
+                .displayName(user.getDisplayName())
+                .email(user.getEmail())
+                .phone(user.getPhone())
+                .photoUrl(user.getPhotoUrl())
+                .currentBalance(user.getCurrentBalance())
+
+                .build();
     }
 }
