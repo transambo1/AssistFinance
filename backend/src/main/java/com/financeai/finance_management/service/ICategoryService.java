@@ -8,25 +8,30 @@ import java.util.List;
 
 public interface ICategoryService {
     void createDefaultCategories(String userId);
+<<<<<<< Updated upstream
     CategoryResponse createCategory(CategoryCreationRequest request);
+=======
 
-    CategoryResponse updateCategory(String id, CategoryUpdateRequest request);
+    BaseResponse<CategoryResponse> createCategory(CategoryCreationRequest request);
+>>>>>>> Stashed changes
 
-    CategoryResponse getCategoryById(String id);
+    BaseResponse<CategoryResponse> updateCategory(String id, CategoryUpdateRequest request);
+
+    BaseResponse<CategoryResponse> getCategoryById(String id);
 
     List<CategoryResponse> getAllCategories();
 
-    List<CategoryResponse> getCategoriesByUserId(String userId);
+    BaseResponse<List<CategoryResponse>> getCategoriesByUserId(String userId);
 
-    List<CategoryResponse> getCategoriesByType(String userId, String type);
+    BaseResponse<List<CategoryResponse>> getCategoriesByType(String userId, String type);
 
-    List<CategoryResponse> getAvailableCategories(String userId, String type);
+    BaseResponse<List<CategoryResponse>> getAvailableCategories(String userId, String type);
 
-    void archiveCategory(String id);
+    BaseResponse<String> archiveCategory(String id);
 
-    void unarchiveCategory(String id);
+    BaseResponse<String> unarchiveCategory(String id);
 
-    void softDeleteCategory(String id, String userId);
+    BaseResponse<String> softDeleteCategory(String id, String userId);
 
-    void increaseUsageCount(String id);
+    BaseResponse<String> increaseUsageCount(String id);
 }
