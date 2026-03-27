@@ -22,7 +22,7 @@ public interface IAuthenticationService {
 
     String generateToken(User user);
 
-    AuthenticationResponse register(RegisterRequest request);
+    BaseResponse<AuthenticationResponse> register(RegisterRequest request);
     void logout(LogoutRequest request) throws java.text.ParseException, com.nimbusds.jose.JOSEException;
 
     BaseResponse<UserResponse> getMyInfo();
