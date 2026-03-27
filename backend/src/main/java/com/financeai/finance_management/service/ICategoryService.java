@@ -13,8 +13,6 @@ public interface ICategoryService {
     void createDefaultCategories(String userId);
     BaseResponse<CategoryResponse> createCategory(CategoryCreationRequest request);
 
-    BaseResponse<CategoryResponse> createCategory(CategoryCreationRequest request);
-
     BaseResponse<CategoryResponse> updateCategory(String id, CategoryUpdateRequest request);
 
     BaseResponse<CategoryResponse> getCategoryById(String id);

@@ -136,20 +136,6 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
                 .currentBalance(java.math.BigDecimal.ZERO) // Set giá trị mặc định cho an toàn
                 .build();
 
-        // 2. Mã hóa mật khẩu
-        PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
-        String encodedPassword = passwordEncoder.encode(request.getPassword());
-
-        // 3. Tạo user mới (Phải có ID và đúng tên field fullName)
-        User newUser = User.builder()
-                .id(String.valueOf(IdGenerator.generateRandomId())) // BẮT BUỘC phải có dòng này vì Entity không tự sinh ID
-                .username(request.getUsername())
-                .password(encodedPassword)
-                .fullName(request.getFullName()) // Khớp với biến fullName trong Entity
-                .email(request.getEmail())
-                .currentBalance(java.math.BigDecimal.ZERO) // Set giá trị mặc định cho an toàn
-                .build();
-
         User savedUser = userRepository.save(newUser);
         categoryService.createDefaultCategories(savedUser.getId());
 
@@ -157,9 +143,6 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
         // 4. Tự động đăng nhập
         String token = generateToken(savedUser);
         userRepository.save(newUser);
-
-        // 4. Tự động đăng nhập
-        String token = generateToken(newUser);
 
         return AuthenticationResponse.builder()
                 .token(token)
