@@ -1,25 +1,25 @@
 package com.financeai.finance_management.service;
 
 import com.financeai.finance_management.dto.request.CategoryCreationRequest;
+import com.financeai.finance_management.dto.request.CategoryFilterRequest;
 import com.financeai.finance_management.dto.request.CategoryUpdateRequest;
+import com.financeai.finance_management.dto.response.BasePaginationResponse;
+import com.financeai.finance_management.dto.response.BaseResponse;
 import com.financeai.finance_management.dto.response.CategoryResponse;
 
 import java.util.List;
 
 public interface ICategoryService {
     void createDefaultCategories(String userId);
-<<<<<<< Updated upstream
-    CategoryResponse createCategory(CategoryCreationRequest request);
-=======
+    BaseResponse<CategoryResponse> createCategory(CategoryCreationRequest request);
 
     BaseResponse<CategoryResponse> createCategory(CategoryCreationRequest request);
->>>>>>> Stashed changes
 
     BaseResponse<CategoryResponse> updateCategory(String id, CategoryUpdateRequest request);
 
     BaseResponse<CategoryResponse> getCategoryById(String id);
 
-    List<CategoryResponse> getAllCategories();
+    BaseResponse<BasePaginationResponse<CategoryResponse>> getAllCategories(CategoryFilterRequest request);
 
     BaseResponse<List<CategoryResponse>> getCategoriesByUserId(String userId);
 

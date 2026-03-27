@@ -1,9 +1,7 @@
 package com.financeai.finance_management.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import com.financeai.finance_management.enums.TransactionType;
+import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.SQLRestriction;
 
@@ -36,8 +34,10 @@ public class Transaction extends BaseEntity {
     @Column(name = "amount", nullable = false, precision = 19, scale = 4)
     private BigDecimal amount = BigDecimal.ZERO;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false, length = 20)
-    private String type; // INCOME, EXPENSE, ADJUSTMENT
+    @Builder.Default
+    private TransactionType type = TransactionType.INCOME; // INCOME, EXPENSE, ADJUSTMENT
 
     @Column(name = "note", columnDefinition = "TEXT")
     private String note;

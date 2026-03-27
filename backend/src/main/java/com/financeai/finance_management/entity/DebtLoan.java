@@ -1,16 +1,14 @@
 package com.financeai.finance_management.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import com.financeai.finance_management.enums.LoanType;
+import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
 @Entity
 @Table(name = "debts_loans")
-@Builder
+@Builder(toBuilder = true)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -31,8 +29,10 @@ public class DebtLoan extends BaseEntity {
     @Column(name = "phone_number", length = 20)
     private String phoneNumber;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false, length = 10)
-    private String type; // DEBT, LOAN
+    @Builder.Default
+    private LoanType type = LoanType.LOAN; // DEBT, LOAN
 
     @Builder.Default
     @Column(name = "total_amount", nullable = false, precision = 19, scale = 4)
@@ -46,7 +46,7 @@ public class DebtLoan extends BaseEntity {
     private BigDecimal remainingAmount; // Cột này do DB tự tính (Generated Always)
 
     @Builder.Default
-    @Column(name = "status", length = 20)
+    @Column(name = "status", length = 50)
     private String status = "ONGOING";
 
     @Column(name = "start_date")

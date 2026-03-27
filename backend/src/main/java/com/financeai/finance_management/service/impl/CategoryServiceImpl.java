@@ -1,7 +1,10 @@
 package com.financeai.finance_management.service.impl;
 
 import com.financeai.finance_management.dto.request.CategoryCreationRequest;
+import com.financeai.finance_management.dto.request.CategoryFilterRequest;
 import com.financeai.finance_management.dto.request.CategoryUpdateRequest;
+import com.financeai.finance_management.dto.response.BasePaginationResponse;
+import com.financeai.finance_management.dto.response.BaseResponse;
 import com.financeai.finance_management.dto.response.CategoryResponse;
 import com.financeai.finance_management.entity.Category;
 import com.financeai.finance_management.enums.CategoryType;
@@ -12,6 +15,9 @@ import com.financeai.finance_management.service.ICategoryService;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -98,7 +104,7 @@ public class CategoryServiceImpl implements ICategoryService {
     }
 
     @Override
-    public CategoryResponse createCategory(CategoryCreationRequest request) {
+    public BaseResponse<CategoryResponse> createCategory(CategoryCreationRequest request) {
         validateCreateRequest(request);
 
         CategoryType categoryType = parseCategoryType(request.getType());
@@ -125,7 +131,7 @@ public class CategoryServiceImpl implements ICategoryService {
                 .build();
 
         categoryRepository.save(category);
-        return mapToResponse(category);
+        return BaseResponse.ok(mapToResponse(category));
     }
 
     @Override
@@ -181,14 +187,8 @@ public class CategoryServiceImpl implements ICategoryService {
 
     @Override
     @Transactional(readOnly = true)
-<<<<<<< Updated upstream
-    public List<CategoryResponse> getAllCategories() {
-        return categoryRepository.findAll()
-                .stream()
-                .map(this::mapToResponse)
-                .toList();
-=======
     public BaseResponse<BasePaginationResponse<CategoryResponse>> getAllCategories(CategoryFilterRequest request) {
+    public BaseResponse<BasePaginationResponse<CategoryResponse>> getAllCategories(CategoryFilterRequest request){
         Specification<Category> spec = request.specification();
         Pageable pageable = request.pageable();
 
@@ -196,7 +196,6 @@ public class CategoryServiceImpl implements ICategoryService {
                 categoryRepository.findAll(spec, pageable).map(this::mapToResponse);
 
         return BaseResponse.ok(BasePaginationResponse.of(pageResponse));
->>>>>>> Stashed changes
     }
 
     @Override
