@@ -118,7 +118,7 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
                 .build();
     }
     @Override
-    public AuthenticationResponse register(RegisterRequest request) {
+    public BaseResponse<AuthenticationResponse> register(RegisterRequest request) {
 
         Optional<User> existingUser = userRepository.findByUsername(request.getUsername());
 
@@ -148,10 +148,11 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
         String token = generateToken(savedUser);
         userRepository.save(newUser);
 
-        return AuthenticationResponse.builder()
+        AuthenticationResponse authResponse = AuthenticationResponse.builder()
                 .token(token)
                 .authenticated(true)
                 .build();
+        return BaseResponse.ok(authResponse);
     }
 
     @Override
