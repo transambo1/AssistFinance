@@ -4,6 +4,7 @@ import com.financeai.finance_management.dto.request.*;
 import com.financeai.finance_management.dto.response.AuthenticationResponse;
 import com.financeai.finance_management.dto.response.BaseResponse;
 import com.financeai.finance_management.dto.response.IntrospectResponse;
+import com.financeai.finance_management.dto.response.UserResponse;
 import com.financeai.finance_management.entity.User;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jwt.SignedJWT;
@@ -24,7 +25,8 @@ public interface IAuthenticationService {
     AuthenticationResponse register(RegisterRequest request);
     void logout(LogoutRequest request) throws java.text.ParseException, com.nimbusds.jose.JOSEException;
 
-    User getMyInfo();
-    User updateMyInfo(UserUpdateRequest request);
+    BaseResponse<UserResponse> getMyInfo();
+
+    BaseResponse<UserResponse> updateMyInfo(UserUpdateRequest request);
 }
 
