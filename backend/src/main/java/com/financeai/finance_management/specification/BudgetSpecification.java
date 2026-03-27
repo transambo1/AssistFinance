@@ -15,7 +15,7 @@ public final class BudgetSpecification {
     private static final String FIELD_USER_ID = "userId";
     private static final String FIELD_CATEGORY_ID = "categoryId";
     private static final String FIELD_TYPE = "type";
-    private static final String FIELD_MONTH_YEAR = "monthYear";
+    private static final String FIELD_START_DATE = "startDate";
     private static final String FIELD_IS_ACTIVE = "isActive";
 
     private final List<Specification<Budget>> specifications = new ArrayList<>();
@@ -63,11 +63,15 @@ public final class BudgetSpecification {
         return this;
     }
 
-    public BudgetSpecification withMonthYear(String monthYear) {
-        if (monthYear == null || monthYear.isBlank()) return this;
+    public BudgetSpecification withMonthAndYear(Integer month, Integer year) {
+        if (month == null || year == null) return this;
 
-        specifications.add((root, query, cb) ->
-                cb.equal(root.get(FIELD_MONTH_YEAR), monthYear.trim()));
+        specifications.add((root, query, cb) -> {
+            Long start = buildStartDate(year, month);
+            Long end = buildEndDate(year, month);
+
+            return cb.between(root.get(FIELD_START_DATE), start, end);
+        });
 
         return this;
     }
@@ -90,5 +94,20 @@ public final class BudgetSpecification {
 
             return cb.and(predicates.toArray(new Predicate[0]));
         };
+    }
+    private Long buildStartDate(Integer year, Integer month) {
+        return java.time.LocalDate.of(year, month, 1)
+                .atStartOfDay(java.time.ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli();
+    }
+    private Long buildEndDate(Integer year, Integer month) {
+        java.time.LocalDate lastDay = java.time.LocalDate.of(year, month, 1)
+                .withDayOfMonth(java.time.LocalDate.of(year, month, 1).lengthOfMonth());
+
+        return lastDay.atTime(23, 59, 59)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli();
     }
 }
