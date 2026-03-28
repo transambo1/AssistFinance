@@ -20,9 +20,9 @@ public class JwtUtils {
     private final int jwtExpirationMs = 86400000;
 
     // Hàm tạo Token từ Username
-    public String generateToken(String username) {
+    public String generateToken(String userId) {
         return Jwts.builder()
-                .setSubject(username)
+                .setSubject(userId)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))
                 .signWith(key)
@@ -30,7 +30,7 @@ public class JwtUtils {
     }
 
     // Hàm lấy Username từ trong Token ra
-    public String getUserNameFromJwtToken(String token) {
+    public String getUserIdFromJwtToken(String token) {
         return Jwts.parserBuilder().setSigningKey(key).build()
                 .parseClaimsJws(token).getBody().getSubject();
     }
