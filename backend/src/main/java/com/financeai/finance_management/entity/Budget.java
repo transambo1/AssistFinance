@@ -1,5 +1,6 @@
 package com.financeai.finance_management.entity;
 
+import com.financeai.finance_management.enums.BudgetStatus;
 import com.financeai.finance_management.enums.BudgetType;
 import jakarta.persistence.*;
 import lombok.*;
@@ -51,7 +52,8 @@ public class Budget extends BaseEntity {
     @Column(name = "end_date")
     private Long endDate;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 50)
     @Builder.Default
-    @Column(name = "status", length = 20)
-    private String status = "ACTIVE";
+    private BudgetStatus status = BudgetStatus.ACTIVE;
 }

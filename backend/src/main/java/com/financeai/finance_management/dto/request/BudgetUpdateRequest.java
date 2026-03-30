@@ -14,7 +14,8 @@ public class BudgetUpdateRequest {
     private BigDecimal currentAmount;
     private BudgetType type;
     private String categoryId;
-    private Integer month;
-    private Integer year;
+    private Long startDate;
+    private Long endDate;
     private Boolean isActive;
+    private Integer durationMonths;
 }
