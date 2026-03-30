@@ -30,6 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.UUID;
 
 @Service
@@ -47,15 +49,15 @@ public class BudgetServiceImpl implements IBudgetService {
         validateCreateRequest(request);
 
         String currentUserId = getCurrentUserId();
-        User user = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+        User user = findUserById(currentUserId);
 
         BudgetType budgetType = request.getType();
+        String categoryId = normalize(request.getCategoryId());
 
         if (budgetType == BudgetType.LIMIT) {
-            validateCategoryOwnership(request.getCategoryId(), currentUserId);
+            validateCategoryOwnership(categoryId, currentUserId);
         } else {
-            request.setCategoryId(null);
+            categoryId = null;
         }
 
         boolean existed = budgetRepository.existsByUserIdAndNameAndDeletedAtIsNull(
@@ -67,12 +69,10 @@ public class BudgetServiceImpl implements IBudgetService {
             throw new AppException(ErrorCode.DATASOURCE_ALREADY_EXISTS);
         }
 
-        validateMonthAndYear(request.getMonth(), request.getYear());
-
         Budget budget = Budget.builder()
                 .id(UUID.randomUUID().toString())
                 .user(user)
-                .categoryId(normalize(request.getCategoryId()))
+                .categoryId(categoryId)
                 .name(request.getName().trim())
                 .type(budgetType)
                 .targetAmount(request.getTargetAmount())
@@ -88,15 +88,13 @@ public class BudgetServiceImpl implements IBudgetService {
 
     @Override
     public BaseResponse<BudgetResponse> updateBudget(String id, BudgetUpdateRequest request) {
-        if (id == null || id.isBlank() || request == null) {
+        if (request == null) {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
-        Budget budget = getBudgetOrThrow(id);
-        checkBudgetOwnership(budget);
+        Budget budget = findOwnedBudget(id);
 
         BudgetType finalType = budget.getType();
-
         if (request.getType() != null) {
             finalType = request.getType();
             budget.setType(finalType);
@@ -125,12 +123,12 @@ public class BudgetServiceImpl implements IBudgetService {
         }
 
         if (finalType == BudgetType.LIMIT) {
-            String categoryId = request.getCategoryId() != null
-                    ? request.getCategoryId().trim()
+            String finalCategoryId = request.getCategoryId() != null
+                    ? normalize(request.getCategoryId())
                     : budget.getCategoryId();
 
-            validateCategoryOwnership(categoryId, budget.getUser().getId());
-            budget.setCategoryId(categoryId);
+            validateCategoryOwnership(finalCategoryId, budget.getUser().getId());
+            budget.setCategoryId(finalCategoryId);
         } else {
             budget.setCategoryId(null);
         }
@@ -144,7 +142,6 @@ public class BudgetServiceImpl implements IBudgetService {
             }
 
             validateMonthAndYear(month, year);
-
             budget.setStartDate(buildStartDate(year, month));
             budget.setEndDate(buildEndDate(year, month));
         }
@@ -160,33 +157,34 @@ public class BudgetServiceImpl implements IBudgetService {
     @Override
     @Transactional(readOnly = true)
     public BaseResponse<BudgetResponse> getBudgetById(String id) {
-        Budget budget = getBudgetOrThrow(id);
-        checkBudgetOwnership(budget);
-
+        Budget budget = findOwnedBudget(id);
         return BaseResponse.ok(mapToResponse(budget));
     }
 
     @Override
     @Transactional(readOnly = true)
     public BaseResponse<BasePaginationResponse<BudgetResponse>> getAllBudgets(BudgetFilterRequest request) {
+        if (request == null) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
+
         String currentUserId = getCurrentUserId();
         request.setUserId(currentUserId);
 
         Specification<Budget> spec = request.specification();
         Pageable pageable = request.pageable();
 
-        Page<BudgetResponse> pageResponse =
-                budgetRepository.findAll(spec, pageable).map(this::mapToResponse);
+        Page<BudgetResponse> pageResponse = budgetRepository
+                .findAll(spec, pageable)
+                .map(this::mapToResponse);
 
         return BaseResponse.ok(BasePaginationResponse.of(pageResponse));
     }
 
     @Override
     public BaseResponse<String> activateBudget(String id) {
-        Budget budget = getBudgetOrThrow(id);
-        checkBudgetOwnership(budget);
-
-        budget.setActive(true);
+        Budget budget = findOwnedBudget(id);
+        budget.setStatus("ACTIVE");
         budgetRepository.save(budget);
 
         return BaseResponse.ok("Budget activated successfully");
@@ -194,10 +192,8 @@ public class BudgetServiceImpl implements IBudgetService {
 
     @Override
     public BaseResponse<String> deactivateBudget(String id) {
-        Budget budget = getBudgetOrThrow(id);
-        checkBudgetOwnership(budget);
-
-        budget.setActive(false);
+        Budget budget = findOwnedBudget(id);
+        budget.setStatus("INACTIVE");
         budgetRepository.save(budget);
 
         return BaseResponse.ok("Budget deactivated successfully");
@@ -205,14 +201,12 @@ public class BudgetServiceImpl implements IBudgetService {
 
     @Override
     public BaseResponse<String> softDeleteBudget(String id) {
-        Budget budget = getBudgetOrThrow(id);
-        checkBudgetOwnership(budget);
-
+        Budget budget = findOwnedBudget(id);
         budget.setDeletedAt(Instant.now().toEpochMilli());
         budget.deactivate();
+        budget.setStatus("INACTIVE");
 
         budgetRepository.save(budget);
-
         return BaseResponse.ok("Budget deleted successfully");
     }
 
@@ -225,6 +219,10 @@ public class BudgetServiceImpl implements IBudgetService {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
+        if (request.getType() == null) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
+
         if (request.getTargetAmount() == null || request.getTargetAmount().compareTo(BigDecimal.ZERO) <= 0) {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
@@ -233,17 +231,13 @@ public class BudgetServiceImpl implements IBudgetService {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
-        if (request.getType() == null){
-            throw new AppException(ErrorCode.INVALID_REQUEST);
-        }
-
         validateMonthAndYear(request.getMonth(), request.getYear());
 
-        BudgetType budgetType = request.getType();
-
-        if (budgetType == BudgetType.LIMIT &&
-                (request.getCategoryId() == null || request.getCategoryId().trim().isEmpty())) {
-            throw new AppException(ErrorCode.INVALID_REQUEST);
+        if (request.getType() == BudgetType.LIMIT) {
+            String categoryId = normalize(request.getCategoryId());
+            if (categoryId == null) {
+                throw new AppException(ErrorCode.INVALID_REQUEST);
+            }
         }
     }
 
@@ -261,6 +255,38 @@ public class BudgetServiceImpl implements IBudgetService {
         }
     }
 
+    private String getCurrentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        Object principal = authentication.getPrincipal();
+
+        if (principal instanceof String userId) {
+            if (userId.isBlank()) {
+                throw new AppException(ErrorCode.UNAUTHENTICATED);
+            }
+            return userId.trim();
+        }
+
+        if (principal instanceof Jwt jwt) {
+            String userId = jwt.getSubject();
+            if (userId == null || userId.isBlank()) {
+                throw new AppException(ErrorCode.UNAUTHENTICATED);
+            }
+            return userId.trim();
+        }
+
+        String userId = authentication.getName();
+        if (userId == null || userId.isBlank()) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        return userId.trim();
+    }
+
     private String normalize(String value) {
         if (value == null) {
             return null;
@@ -270,75 +296,77 @@ public class BudgetServiceImpl implements IBudgetService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    private String getCurrentUsername() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-
-        if (authentication == null || !(authentication.getPrincipal() instanceof Jwt jwt)) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-
-        return jwt.getSubject();
-    }
-
-    private String getCurrentUserId() {
-        String username = getCurrentUsername();
-
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
-
-        return user.getId();
-    }
-
-    private Budget getBudgetOrThrow(String id) {
-        if (id == null || id.isBlank()) {
+    private String requireValidId(String id) {
+        if (id == null || id.trim().isEmpty()) {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
+        return id.trim();
+    }
 
-        return budgetRepository.findByIdAndDeletedAtIsNull(id.trim())
+    private User findUserById(String userId) {
+        return userRepository.findById(requireValidId(userId))
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+    }
+
+    private Budget findBudgetById(String id) {
+        return budgetRepository.findByIdAndDeletedAtIsNull(requireValidId(id))
                 .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
     }
 
-    private void checkBudgetOwnership(Budget budget) {
+    private Budget findOwnedBudget(String id) {
+        Budget budget = findBudgetById(id);
         String currentUserId = getCurrentUserId();
-        if (!budget.getUser().getId().equals(currentUserId)) {
+
+        if (budget.getUser() == null || budget.getUser().getId() == null) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
+
+        if (!currentUserId.equals(budget.getUser().getId().trim())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        return budget;
     }
 
     private void validateCategoryOwnership(String categoryId, String currentUserId) {
-        if (categoryId == null || categoryId.isBlank()) {
-            throw new AppException(ErrorCode.INVALID_REQUEST);
-        }
+        String normalizedCategoryId = requireValidId(categoryId);
 
-        Category category = categoryRepository.findById(categoryId.trim())
+        Category category = categoryRepository.findById(normalizedCategoryId)
                 .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
 
-        if (!category.getUser().getId().equals(currentUserId)) {
+        if (category.getUser() == null || category.getUser().getId() == null) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if (!category.getUser().getId().trim().equals(currentUserId.trim())) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
     }
+
     private Long buildStartDate(Integer year, Integer month) {
-        return java.time.LocalDate.of(year, month, 1)
-                .atStartOfDay(java.time.ZoneId.systemDefault())
+        return LocalDate.of(year, month, 1)
+                .atStartOfDay(ZoneId.systemDefault())
                 .toInstant()
                 .toEpochMilli();
     }
+
     private Long buildEndDate(Integer year, Integer month) {
-        java.time.LocalDate lastDay = java.time.LocalDate.of(year, month, 1)
-                .withDayOfMonth(java.time.LocalDate.of(year, month, 1).lengthOfMonth());
+        LocalDate firstDay = LocalDate.of(year, month, 1);
+        LocalDate lastDay = firstDay.withDayOfMonth(firstDay.lengthOfMonth());
 
         return lastDay.atTime(23, 59, 59)
-                .atZone(java.time.ZoneId.systemDefault())
+                .atZone(ZoneId.systemDefault())
                 .toInstant()
                 .toEpochMilli();
     }
+
     private BudgetResponse mapToResponse(Budget budget) {
         Integer month = null;
         Integer year = null;
 
         if (budget.getStartDate() != null) {
-            java.time.LocalDate date = Instant.ofEpochMilli(budget.getStartDate())
-                    .atZone(java.time.ZoneId.systemDefault())
+            LocalDate date = Instant.ofEpochMilli(budget.getStartDate())
+                    .atZone(ZoneId.systemDefault())
                     .toLocalDate();
             month = date.getMonthValue();
             year = date.getYear();

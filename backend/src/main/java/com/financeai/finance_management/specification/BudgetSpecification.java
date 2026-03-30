@@ -38,8 +38,9 @@ public final class BudgetSpecification {
     public BudgetSpecification withUserId(String userId) {
         if (userId == null || userId.isBlank()) return this;
 
-        specifications.add((root, query, cb) ->
-                cb.equal(root.get(FIELD_USER_ID), userId.trim()));
+        specifications.add(
+                (root, query, cb) ->
+                        cb.equal(root.get("user").get("id"), userId.trim()));
 
         return this;
     }
