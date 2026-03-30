@@ -9,7 +9,6 @@ import java.math.BigDecimal;
 @Getter
 @Setter
 public class BudgetCreationRequest {
-    private String userId;
     private String name;
     private BigDecimal targetAmount;
     private BigDecimal currentAmount;
