@@ -8,6 +8,7 @@ import com.financeai.finance_management.dto.response.BaseResponse;
 import com.financeai.finance_management.dto.response.BudgetResponse;
 
 public interface IBudgetService {
+
     BaseResponse<BudgetResponse> createBudget(BudgetCreationRequest request);
 
     BaseResponse<BudgetResponse> updateBudget(String id, BudgetUpdateRequest request);
