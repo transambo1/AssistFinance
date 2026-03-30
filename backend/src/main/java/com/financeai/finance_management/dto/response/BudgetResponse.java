@@ -1,5 +1,6 @@
 package com.financeai.finance_management.dto.response;
 
+import com.financeai.finance_management.enums.BudgetStatus;
 import com.financeai.finance_management.enums.BudgetType;
 import lombok.Builder;
 import lombok.Getter;
@@ -18,9 +19,10 @@ public class BudgetResponse {
     private BudgetType type;
     private BigDecimal targetAmount;
     private BigDecimal currentAmount;
-    private Integer month;
-    private Integer year;
-    private boolean isActive;
+    private Long startDate;
+    private Long endDate;
+    private Boolean isActive;
+    private BudgetStatus status;
     private Long createdAt;
     private Long updatedAt;
     private Long deletedAt;

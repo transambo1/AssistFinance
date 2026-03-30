@@ -1,31 +1,42 @@
 package com.financeai.finance_management.specification;
 
 import com.financeai.finance_management.entity.Budget;
+import com.financeai.finance_management.enums.BudgetStatus;
 import com.financeai.finance_management.enums.BudgetType;
-import com.financeai.finance_management.enums.CategoryType;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 public final class BudgetSpecification {
+
     private static final String FIELD_NAME = "name";
-    private static final String FIELD_USER_ID = "userId";
     private static final String FIELD_CATEGORY_ID = "categoryId";
     private static final String FIELD_TYPE = "type";
+    private static final String FIELD_STATUS = "status";
     private static final String FIELD_START_DATE = "startDate";
+    private static final String FIELD_END_DATE = "endDate";
     private static final String FIELD_IS_ACTIVE = "isActive";
+    private static final String FIELD_USER = "user";
+    private static final String FIELD_ID = "id";
 
     private final List<Specification<Budget>> specifications = new ArrayList<>();
+
+    private BudgetSpecification() {
+    }
 
     public static BudgetSpecification builder() {
         return new BudgetSpecification();
     }
 
     public BudgetSpecification withKeyword(String keyword) {
-        if (keyword == null || keyword.isBlank()) return this;
+        if (keyword == null || keyword.isBlank()) {
+            return this;
+        }
 
         specifications.add((root, query, cb) -> {
             String pattern = "%" + keyword.trim().toLowerCase() + "%";
@@ -36,17 +47,20 @@ public final class BudgetSpecification {
     }
 
     public BudgetSpecification withUserId(String userId) {
-        if (userId == null || userId.isBlank()) return this;
+        if (userId == null || userId.isBlank()) {
+            return this;
+        }
 
-        specifications.add(
-                (root, query, cb) ->
-                        cb.equal(root.get("user").get("id"), userId.trim()));
+        specifications.add((root, query, cb) ->
+                cb.equal(root.get(FIELD_USER).get(FIELD_ID), userId.trim()));
 
         return this;
     }
 
     public BudgetSpecification withCategoryId(String categoryId) {
-        if (categoryId == null || categoryId.isBlank()) return this;
+        if (categoryId == null || categoryId.isBlank()) {
+            return this;
+        }
 
         specifications.add((root, query, cb) ->
                 cb.equal(root.get(FIELD_CATEGORY_ID), categoryId.trim()));
@@ -55,30 +69,31 @@ public final class BudgetSpecification {
     }
 
     public BudgetSpecification withType(BudgetType type) {
-        if (type == null) return this;
+        if (type == null) {
+            return this;
+        }
 
-        specifications.add(
-                (root, query, cb) ->
-                        cb.equal(root.get(FIELD_TYPE), type.name()));
+        specifications.add((root, query, cb) ->
+                cb.equal(root.get(FIELD_TYPE), type));
 
         return this;
     }
 
-    public BudgetSpecification withMonthAndYear(Integer month, Integer year) {
-        if (month == null || year == null) return this;
+    public BudgetSpecification withStatus(BudgetStatus status) {
+        if (status == null) {
+            return this;
+        }
 
-        specifications.add((root, query, cb) -> {
-            Long start = buildStartDate(year, month);
-            Long end = buildEndDate(year, month);
-
-            return cb.between(root.get(FIELD_START_DATE), start, end);
-        });
+        specifications.add((root, query, cb) ->
+                cb.equal(root.get(FIELD_STATUS), status));
 
         return this;
     }
 
     public BudgetSpecification withActive(Boolean isActive) {
-        if (isActive == null) return this;
+        if (isActive == null) {
+            return this;
+        }
 
         specifications.add((root, query, cb) ->
                 cb.equal(root.get(FIELD_IS_ACTIVE), isActive));
@@ -86,29 +101,79 @@ public final class BudgetSpecification {
         return this;
     }
 
+    public BudgetSpecification withDateRange(Long startDate, Long endDate) {
+        if (startDate == null && endDate == null) {
+            return this;
+        }
+
+        if (startDate != null && endDate != null) {
+            specifications.add((root, query, cb) ->
+                    cb.and(
+                            cb.lessThanOrEqualTo(root.get(FIELD_START_DATE), endDate),
+                            cb.greaterThanOrEqualTo(root.get(FIELD_END_DATE), startDate)
+                    ));
+            return this;
+        }
+
+        if (startDate != null) {
+            specifications.add((root, query, cb) ->
+                    cb.greaterThanOrEqualTo(root.get(FIELD_END_DATE), startDate));
+        }
+
+        if (endDate != null) {
+            specifications.add((root, query, cb) ->
+                    cb.lessThanOrEqualTo(root.get(FIELD_START_DATE), endDate));
+        }
+
+        return this;
+    }
+
+    public BudgetSpecification withMonthAndYear(Integer month, Integer year) {
+        if (month == null || year == null) {
+            return this;
+        }
+
+        if (month < 1 || month > 12) {
+            return this;
+        }
+
+        if (year < 2000 || year > 3000) {
+            return this;
+        }
+
+        Long monthStart = LocalDate.of(year, month, 1)
+                .atStartOfDay(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli();
+
+        LocalDate firstDay = LocalDate.of(year, month, 1);
+        Long monthEnd = firstDay.withDayOfMonth(firstDay.lengthOfMonth())
+                .atTime(23, 59, 59)
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli();
+
+        specifications.add((root, query, cb) ->
+                cb.and(
+                        cb.lessThanOrEqualTo(root.get(FIELD_START_DATE), monthEnd),
+                        cb.greaterThanOrEqualTo(root.get(FIELD_END_DATE), monthStart)
+                ));
+
+        return this;
+    }
+
     public Specification<Budget> build() {
         return (root, query, cb) -> {
             List<Predicate> predicates = specifications.stream()
-                    .map(s -> s.toPredicate(root, query, cb))
+                    .map(specification -> specification.toPredicate(root, query, cb))
                     .filter(Objects::nonNull)
                     .toList();
 
+            if (predicates.isEmpty()) {
+                return cb.conjunction();
+            }
+
             return cb.and(predicates.toArray(new Predicate[0]));
         };
-    }
-    private Long buildStartDate(Integer year, Integer month) {
-        return java.time.LocalDate.of(year, month, 1)
-                .atStartOfDay(java.time.ZoneId.systemDefault())
-                .toInstant()
-                .toEpochMilli();
-    }
-    private Long buildEndDate(Integer year, Integer month) {
-        java.time.LocalDate lastDay = java.time.LocalDate.of(year, month, 1)
-                .withDayOfMonth(java.time.LocalDate.of(year, month, 1).lengthOfMonth());
-
-        return lastDay.atTime(23, 59, 59)
-                .atZone(java.time.ZoneId.systemDefault())
-                .toInstant()
-                .toEpochMilli();
     }
 }

@@ -9,7 +9,9 @@ import com.financeai.finance_management.dto.response.BudgetResponse;
 import com.financeai.finance_management.entity.Budget;
 import com.financeai.finance_management.entity.Category;
 import com.financeai.finance_management.entity.User;
+import com.financeai.finance_management.enums.BudgetStatus;
 import com.financeai.finance_management.enums.BudgetType;
+import com.financeai.finance_management.enums.CategoryType;
 import com.financeai.finance_management.exception.exception.AppException;
 import com.financeai.finance_management.exception.exception.ErrorCode;
 import com.financeai.finance_management.repository.BudgetRepository;
@@ -32,6 +34,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -40,24 +43,35 @@ import java.util.UUID;
 @Transactional
 public class BudgetServiceImpl implements IBudgetService {
 
+    private static final Set<Integer> ALLOWED_DURATION_MONTHS = Set.of(1, 3, 12, 24);
+
     BudgetRepository budgetRepository;
     UserRepository userRepository;
     CategoryRepository categoryRepository;
 
     @Override
     public BaseResponse<BudgetResponse> createBudget(BudgetCreationRequest request) {
+        if (request == null) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
+
+        normalizeCreateDate(request);
         validateCreateRequest(request);
 
         String currentUserId = getCurrentUserId();
         User user = findUserById(currentUserId);
 
-        BudgetType budgetType = request.getType();
+        BudgetType type = request.getType();
         String categoryId = normalize(request.getCategoryId());
 
-        if (budgetType == BudgetType.LIMIT) {
-            validateCategoryOwnership(categoryId, currentUserId);
+        if (type == BudgetType.LIMIT) {
+            validateLimitCategory(categoryId, currentUserId);
+        } else if (type == BudgetType.SAVING) {
+            if (categoryId != null) {
+                throw new AppException(ErrorCode.INVALID_REQUEST);
+            }
         } else {
-            categoryId = null;
+            throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
         boolean existed = budgetRepository.existsByUserIdAndNameAndDeletedAtIsNull(
@@ -69,21 +83,36 @@ public class BudgetServiceImpl implements IBudgetService {
             throw new AppException(ErrorCode.DATASOURCE_ALREADY_EXISTS);
         }
 
+        BigDecimal currentAmount = request.getCurrentAmount() == null
+                ? BigDecimal.ZERO
+                : request.getCurrentAmount();
+
         Budget budget = Budget.builder()
                 .id(UUID.randomUUID().toString())
                 .user(user)
                 .categoryId(categoryId)
                 .name(request.getName().trim())
-                .type(budgetType)
+                .type(type)
                 .targetAmount(request.getTargetAmount())
-                .currentAmount(request.getCurrentAmount() == null ? BigDecimal.ZERO : request.getCurrentAmount())
-                .startDate(buildStartDate(request.getYear(), request.getMonth()))
-                .endDate(buildEndDate(request.getYear(), request.getMonth()))
-                .status("ACTIVE")
+                .currentAmount(currentAmount)
+                .startDate(request.getStartDate())
+                .endDate(request.getEndDate())
+                .status(resolveStatus(
+                        type,
+                        currentAmount,
+                        request.getTargetAmount(),
+                        true
+                ))
                 .build();
 
-        budgetRepository.save(budget);
-        return BaseResponse.ok(mapToResponse(budget));
+        budget.setActive(true);
+
+        System.out.println(">>> CREATE BUDGET API HIT");
+        Budget savedBudget = budgetRepository.saveAndFlush(budget);
+        System.out.println(">>> SAVED ID: " + savedBudget.getId());
+        System.out.println(">>> COUNT AFTER SAVE: " + budgetRepository.count());
+
+        return BaseResponse.ok(mapToResponse(savedBudget));
     }
 
     @Override
@@ -93,9 +122,13 @@ public class BudgetServiceImpl implements IBudgetService {
         }
 
         Budget budget = findOwnedBudget(id);
+        normalizeUpdateDate(request, budget);
 
         BudgetType finalType = budget.getType();
         if (request.getType() != null) {
+            if (request.getType() != BudgetType.LIMIT && request.getType() != BudgetType.SAVING) {
+                throw new AppException(ErrorCode.INVALID_REQUEST);
+            }
             finalType = request.getType();
             budget.setType(finalType);
         }
@@ -125,30 +158,33 @@ public class BudgetServiceImpl implements IBudgetService {
         if (finalType == BudgetType.LIMIT) {
             String finalCategoryId = request.getCategoryId() != null
                     ? normalize(request.getCategoryId())
-                    : budget.getCategoryId();
+                    : normalize(budget.getCategoryId());
 
-            validateCategoryOwnership(finalCategoryId, budget.getUser().getId());
+            validateLimitCategory(finalCategoryId, budget.getUser().getId());
             budget.setCategoryId(finalCategoryId);
-        } else {
+        } else if (finalType == BudgetType.SAVING) {
+            if (request.getCategoryId() != null && normalize(request.getCategoryId()) != null) {
+                throw new AppException(ErrorCode.INVALID_REQUEST);
+            }
             budget.setCategoryId(null);
         }
 
-        if (request.getMonth() != null || request.getYear() != null) {
-            Integer month = request.getMonth();
-            Integer year = request.getYear();
-
-            if (month == null || year == null) {
-                throw new AppException(ErrorCode.INVALID_REQUEST);
-            }
-
-            validateMonthAndYear(month, year);
-            budget.setStartDate(buildStartDate(year, month));
-            budget.setEndDate(buildEndDate(year, month));
+        if (request.getStartDate() != null || request.getEndDate() != null) {
+            validateDateRange(request.getStartDate(), request.getEndDate());
+            budget.setStartDate(request.getStartDate());
+            budget.setEndDate(request.getEndDate());
         }
 
         if (request.getIsActive() != null) {
-            budget.setStatus(request.getIsActive() ? "ACTIVE" : "INACTIVE");
+            budget.setActive(request.getIsActive());
         }
+
+        budget.setStatus(resolveStatus(
+                budget.getType(),
+                budget.getCurrentAmount(),
+                budget.getTargetAmount(),
+                budget.isActive()
+        ));
 
         budgetRepository.save(budget);
         return BaseResponse.ok(mapToResponse(budget));
@@ -171,11 +207,11 @@ public class BudgetServiceImpl implements IBudgetService {
         String currentUserId = getCurrentUserId();
         request.setUserId(currentUserId);
 
-        Specification<Budget> spec = request.specification();
+        Specification<Budget> specification = request.specification();
         Pageable pageable = request.pageable();
 
         Page<BudgetResponse> pageResponse = budgetRepository
-                .findAll(spec, pageable)
+                .findAll(specification, pageable)
                 .map(this::mapToResponse);
 
         return BaseResponse.ok(BasePaginationResponse.of(pageResponse));
@@ -184,18 +220,25 @@ public class BudgetServiceImpl implements IBudgetService {
     @Override
     public BaseResponse<String> activateBudget(String id) {
         Budget budget = findOwnedBudget(id);
-        budget.setStatus("ACTIVE");
-        budgetRepository.save(budget);
+        budget.setActive(true);
+        budget.setStatus(resolveStatus(
+                budget.getType(),
+                budget.getCurrentAmount(),
+                budget.getTargetAmount(),
+                true
+        ));
 
+        budgetRepository.save(budget);
         return BaseResponse.ok("Budget activated successfully");
     }
 
     @Override
     public BaseResponse<String> deactivateBudget(String id) {
         Budget budget = findOwnedBudget(id);
-        budget.setStatus("INACTIVE");
-        budgetRepository.save(budget);
+        budget.setActive(false);
+        budget.setStatus(BudgetStatus.CANCELLED);
 
+        budgetRepository.save(budget);
         return BaseResponse.ok("Budget deactivated successfully");
     }
 
@@ -203,23 +246,24 @@ public class BudgetServiceImpl implements IBudgetService {
     public BaseResponse<String> softDeleteBudget(String id) {
         Budget budget = findOwnedBudget(id);
         budget.setDeletedAt(Instant.now().toEpochMilli());
+        budget.setActive(false);
+        budget.setStatus(BudgetStatus.CANCELLED);
         budget.deactivate();
-        budget.setStatus("INACTIVE");
 
         budgetRepository.save(budget);
         return BaseResponse.ok("Budget deleted successfully");
     }
 
     private void validateCreateRequest(BudgetCreationRequest request) {
-        if (request == null) {
-            throw new AppException(ErrorCode.INVALID_REQUEST);
-        }
-
         if (request.getName() == null || request.getName().trim().isEmpty()) {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
         if (request.getType() == null) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
+
+        if (request.getType() != BudgetType.LIMIT && request.getType() != BudgetType.SAVING) {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
@@ -231,7 +275,8 @@ public class BudgetServiceImpl implements IBudgetService {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
-        validateMonthAndYear(request.getMonth(), request.getYear());
+        validateDurationMonths(request.getDurationMonths());
+        validateDateRange(request.getStartDate(), request.getEndDate());
 
         if (request.getType() == BudgetType.LIMIT) {
             String categoryId = normalize(request.getCategoryId());
@@ -239,20 +284,144 @@ public class BudgetServiceImpl implements IBudgetService {
                 throw new AppException(ErrorCode.INVALID_REQUEST);
             }
         }
+
+        if (request.getType() == BudgetType.SAVING) {
+            if (normalize(request.getCategoryId()) != null) {
+                throw new AppException(ErrorCode.INVALID_REQUEST);
+            }
+        }
     }
 
-    private void validateMonthAndYear(Integer month, Integer year) {
-        if (month == null || year == null) {
+    private void validateLimitCategory(String categoryId, String currentUserId) {
+        String normalizedCategoryId = requireValidId(categoryId);
+
+        Category category = categoryRepository.findById(normalizedCategoryId)
+                .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
+
+        if (category.getUser() == null || category.getUser().getId() == null) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if (!category.getUser().getId().trim().equals(currentUserId.trim())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if (category.getType() != CategoryType.EXPENSE) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
+    }
+
+    private void validateDateRange(Long startDate, Long endDate) {
+        if (startDate == null || endDate == null) {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
-        if (month < 1 || month > 12) {
+        if (endDate < startDate) {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
-        if (year < 2000 || year > 3000) {
+        LocalDate start = toLocalDate(startDate);
+        LocalDate end = toLocalDate(endDate);
+
+        if (end.isBefore(start)) {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
+    }
+
+    private void validateDurationMonths(Integer durationMonths) {
+        if (durationMonths == null) {
+            return;
+        }
+
+        if (!ALLOWED_DURATION_MONTHS.contains(durationMonths)) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
+    }
+
+    private void normalizeCreateDate(BudgetCreationRequest request) {
+        validateDurationMonths(request.getDurationMonths());
+
+        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+
+        if (request.getStartDate() == null && request.getEndDate() == null) {
+            LocalDate end = today.plusMonths(request.getDurationMonths() != null ? request.getDurationMonths() : 1)
+                    .minusDays(1);
+
+            request.setStartDate(toStartOfDayEpochMilli(today));
+            request.setEndDate(toEndOfDayEpochMilli(end));
+            return;
+        }
+
+        if (request.getStartDate() != null && request.getEndDate() == null) {
+            LocalDate start = toLocalDate(request.getStartDate());
+            LocalDate end = start.plusMonths(request.getDurationMonths() != null ? request.getDurationMonths() : 1)
+                    .minusDays(1);
+
+            request.setStartDate(toStartOfDayEpochMilli(start));
+            request.setEndDate(toEndOfDayEpochMilli(end));
+            return;
+        }
+
+        if (request.getStartDate() == null) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
+
+        LocalDate start = toLocalDate(request.getStartDate());
+        LocalDate end = toLocalDate(request.getEndDate());
+
+        request.setStartDate(toStartOfDayEpochMilli(start));
+        request.setEndDate(toEndOfDayEpochMilli(end));
+    }
+
+    private void normalizeUpdateDate(BudgetUpdateRequest request, Budget currentBudget) {
+        validateDurationMonths(request.getDurationMonths());
+
+        if (request.getStartDate() == null && request.getEndDate() == null && request.getDurationMonths() == null) {
+            return;
+        }
+
+        LocalDate start = request.getStartDate() != null
+                ? toLocalDate(request.getStartDate())
+                : toLocalDate(currentBudget.getStartDate());
+
+        if (request.getEndDate() != null) {
+            LocalDate end = toLocalDate(request.getEndDate());
+            request.setStartDate(toStartOfDayEpochMilli(start));
+            request.setEndDate(toEndOfDayEpochMilli(end));
+            return;
+        }
+
+        if (request.getDurationMonths() != null) {
+            LocalDate end = start.plusMonths(request.getDurationMonths()).minusDays(1);
+            request.setStartDate(toStartOfDayEpochMilli(start));
+            request.setEndDate(toEndOfDayEpochMilli(end));
+            return;
+        }
+
+        if (request.getStartDate() != null) {
+            LocalDate currentEnd = toLocalDate(currentBudget.getEndDate());
+            request.setStartDate(toStartOfDayEpochMilli(start));
+            request.setEndDate(toEndOfDayEpochMilli(currentEnd));
+        }
+    }
+
+    private Long toStartOfDayEpochMilli(LocalDate date) {
+        return date.atStartOfDay(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli();
+    }
+
+    private Long toEndOfDayEpochMilli(LocalDate date) {
+        return date.atTime(23, 59, 59)
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli();
+    }
+
+    private LocalDate toLocalDate(Long epochMilli) {
+        return Instant.ofEpochMilli(epochMilli)
+                .atZone(ZoneId.systemDefault())
+                .toLocalDate();
     }
 
     private String getCurrentUserId() {
@@ -287,6 +456,13 @@ public class BudgetServiceImpl implements IBudgetService {
         return userId.trim();
     }
 
+    private String requireValidId(String id) {
+        if (id == null || id.trim().isEmpty()) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
+        return id.trim();
+    }
+
     private String normalize(String value) {
         if (value == null) {
             return null;
@@ -294,13 +470,6 @@ public class BudgetServiceImpl implements IBudgetService {
 
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
-    }
-
-    private String requireValidId(String id) {
-        if (id == null || id.trim().isEmpty()) {
-            throw new AppException(ErrorCode.INVALID_REQUEST);
-        }
-        return id.trim();
     }
 
     private User findUserById(String userId) {
@@ -328,50 +497,44 @@ public class BudgetServiceImpl implements IBudgetService {
         return budget;
     }
 
-    private void validateCategoryOwnership(String categoryId, String currentUserId) {
-        String normalizedCategoryId = requireValidId(categoryId);
-
-        Category category = categoryRepository.findById(normalizedCategoryId)
-                .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
-
-        if (category.getUser() == null || category.getUser().getId() == null) {
-            throw new AppException(ErrorCode.UNAUTHORIZED);
+    private BudgetStatus resolveStatus(
+            BudgetType type,
+            BigDecimal currentAmount,
+            BigDecimal targetAmount,
+            boolean isActive
+    ) {
+        if (!isActive) {
+            return BudgetStatus.CANCELLED;
         }
 
-        if (!category.getUser().getId().trim().equals(currentUserId.trim())) {
-            throw new AppException(ErrorCode.UNAUTHORIZED);
+        BigDecimal safeCurrent = currentAmount == null ? BigDecimal.ZERO : currentAmount;
+        BigDecimal safeTarget = targetAmount == null ? BigDecimal.ZERO : targetAmount;
+
+        if (safeTarget.compareTo(BigDecimal.ZERO) <= 0) {
+            return BudgetStatus.ACTIVE;
         }
-    }
 
-    private Long buildStartDate(Integer year, Integer month) {
-        return LocalDate.of(year, month, 1)
-                .atStartOfDay(ZoneId.systemDefault())
-                .toInstant()
-                .toEpochMilli();
-    }
+        if (type == BudgetType.LIMIT) {
+            if (safeCurrent.compareTo(safeTarget) > 0) {
+                return BudgetStatus.EXCEEDED;
+            }
+            if (safeCurrent.compareTo(safeTarget) == 0) {
+                return BudgetStatus.COMPLETED;
+            }
+            return BudgetStatus.ACTIVE;
+        }
 
-    private Long buildEndDate(Integer year, Integer month) {
-        LocalDate firstDay = LocalDate.of(year, month, 1);
-        LocalDate lastDay = firstDay.withDayOfMonth(firstDay.lengthOfMonth());
+        if (type == BudgetType.SAVING) {
+            if (safeCurrent.compareTo(safeTarget) >= 0) {
+                return BudgetStatus.COMPLETED;
+            }
+            return BudgetStatus.ACTIVE;
+        }
 
-        return lastDay.atTime(23, 59, 59)
-                .atZone(ZoneId.systemDefault())
-                .toInstant()
-                .toEpochMilli();
+        return BudgetStatus.ACTIVE;
     }
 
     private BudgetResponse mapToResponse(Budget budget) {
-        Integer month = null;
-        Integer year = null;
-
-        if (budget.getStartDate() != null) {
-            LocalDate date = Instant.ofEpochMilli(budget.getStartDate())
-                    .atZone(ZoneId.systemDefault())
-                    .toLocalDate();
-            month = date.getMonthValue();
-            year = date.getYear();
-        }
-
         return BudgetResponse.builder()
                 .id(budget.getId())
                 .userId(budget.getUser() != null ? budget.getUser().getId() : null)
@@ -380,9 +543,10 @@ public class BudgetServiceImpl implements IBudgetService {
                 .type(budget.getType())
                 .targetAmount(budget.getTargetAmount())
                 .currentAmount(budget.getCurrentAmount())
-                .month(month)
-                .year(year)
-                .isActive("ACTIVE".equalsIgnoreCase(budget.getStatus()))
+                .startDate(budget.getStartDate())
+                .endDate(budget.getEndDate())
+                .isActive(budget.isActive())
+                .status(budget.getStatus())
                 .createdAt(budget.getCreatedAt())
                 .updatedAt(budget.getUpdatedAt())
                 .deletedAt(budget.getDeletedAt())
