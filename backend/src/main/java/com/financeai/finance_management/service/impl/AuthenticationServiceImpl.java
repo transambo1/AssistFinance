@@ -1,11 +1,11 @@
 package com.financeai.finance_management.service.impl;
 
-import com.financeai.finance_management.dto.request.AuthenticationRequest;
-import com.financeai.finance_management.dto.request.IntrospectRequest;
-import com.financeai.finance_management.dto.request.RefreshRequest;
+import com.financeai.finance_management.common.IdGenerator;
+import com.financeai.finance_management.dto.request.*;
 import com.financeai.finance_management.dto.response.AuthenticationResponse;
 import com.financeai.finance_management.dto.response.BaseResponse;
 import com.financeai.finance_management.dto.response.IntrospectResponse;
+import com.financeai.finance_management.dto.response.UserResponse;
 import com.financeai.finance_management.entity.InvalidatedToken;
 import com.financeai.finance_management.entity.User;
 import com.financeai.finance_management.exception.exception.AppException;
@@ -31,6 +31,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -38,6 +39,7 @@ import org.springframework.util.CollectionUtils;
 
 import java.text.ParseException;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
@@ -49,6 +51,7 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
     UserRepository userRepository;
     InvalidatedTokenRepository invalidatedTokenRepository;
     private static final List<String> SEARCH_FIELDS = List.of("fullname");
+    private final ICategoryService categoryService;
 
     @NonFinal
     @Value("${jwt.signerKey}")
@@ -97,14 +100,14 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
 
         String jit = signToken.getJWTClaimsSet().getJWTID();
         Date expiryTime = signToken.getJWTClaimsSet().getExpirationTime();
-        String username = signToken.getJWTClaimsSet().getSubject();
+        String userId = signToken.getJWTClaimsSet().getSubject();
         InvalidatedToken invalidatedToken = InvalidatedToken.builder()
                 .id(jit)
                 .expiryDate(expiryTime)
                 .build();
         invalidatedTokenRepository.save(invalidatedToken);
 
-        var user = userRepository.findByUsername(username).orElseThrow(
+        var user = userRepository.findByUsername(userId).orElseThrow(
                 () -> new AppException(ErrorCode.USER_NOT_EXISTED)
         );
 
@@ -114,12 +117,51 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
                 .authenticated(true)
                 .build();
     }
+    @Override
+    public BaseResponse<AuthenticationResponse> register(RegisterRequest request) {
+
+        Optional<User> existingUser = userRepository.findByUsername(request.getUsername());
+
+        if (userRepository.findByUsername(request.getUsername()).isPresent()) {
+            throw new AppException(ErrorCode.USER_EXISTED);
+        }
+
+
+        PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
+        String encodedPassword = passwordEncoder.encode(request.getPassword());
+
+
+        User newUser = User.builder()
+                .id(String.valueOf(IdGenerator.generateRandomId())) // BẮT BUỘC phải có dòng này vì Entity không tự sinh ID
+                .username(request.getUsername())
+                .password(encodedPassword)
+                .fullName(request.getFullName()) // Khớp với biến fullName trong Entity
+                .email(request.getEmail())
+                .currentBalance(java.math.BigDecimal.ZERO) // Set giá trị mặc định cho an toàn
+                .build();
+
+        User savedUser = userRepository.save(newUser);
+        categoryService.createDefaultCategories(savedUser.getId());
+
+
+
+        String token = generateToken(savedUser);
+        userRepository.save(newUser);
+
+        AuthenticationResponse authResponse = AuthenticationResponse.builder()
+                .token(token)
+                .authenticated(true)
+                .build();
+        return BaseResponse.ok(authResponse);
+    }
 
     @Override
     public SignedJWT verifyToken(String token, boolean isRefresh) throws ParseException, JOSEException {
         JWSVerifier verifier = new MACVerifier(SIGNER_KEY.getBytes());
 
         SignedJWT signedJWT = SignedJWT.parse(token);
+
+        // Kiểm tra thời gian hết hạn
         Date expiryTime = (isRefresh)
                 ? new Date(signedJWT.getJWTClaimsSet().getIssueTime()
                 .toInstant().plus(REFRESHABLE_DURATION, ChronoUnit.SECONDS)
@@ -128,18 +170,24 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
 
         var verified = signedJWT.verify(verifier);
 
-        if(!(verified && expiryTime.after(new Date()))) throw new AppException(ErrorCode.UNAUTHENTICATED);
+        // LOG RA ĐỂ BIẾT TẠI SAO FALSE
+        if (!verified) System.err.println("DEBUG: Chu ky Token khong khop!");
+        if (!expiryTime.after(new Date())) System.err.println("DEBUG: Token da het han!");
 
-        if(invalidatedTokenRepository.existsById(signedJWT.getJWTClaimsSet().getJWTID()))
+        if (!(verified && expiryTime.after(new Date())))
             throw new AppException(ErrorCode.UNAUTHENTICATED);
+
+        if (invalidatedTokenRepository.existsById(signedJWT.getJWTClaimsSet().getJWTID())) {
+            System.err.println("DEBUG: Token nam trong danh sach den (Blacklist)!");
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
         return signedJWT;
     }
-
     @Override
     public String generateToken(User user) {
         JWSHeader header = new JWSHeader(JWSAlgorithm.HS512);
         JWTClaimsSet jwtClaimsSet = new JWTClaimsSet.Builder()
-                .subject(String.valueOf(user.getId()))
+                .subject(user.getId())
                 .issuer("fast-food.com")
                 .issueTime(new Date())
                 .expirationTime(new Date(
@@ -158,5 +206,72 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
             log.error("Cannot sign JWT object", e);
             throw new RuntimeException(e);
         }
+    }
+    @Override
+    public void logout(LogoutRequest request) throws ParseException, JOSEException {
+        try {
+            var signToken = verifyToken(request.getToken(), true);
+
+            String jit = signToken.getJWTClaimsSet().getJWTID();
+            Date expiryTime = signToken.getJWTClaimsSet().getExpirationTime();
+
+            InvalidatedToken invalidatedToken = InvalidatedToken.builder()
+                    .id(jit)
+                    .expiryDate(expiryTime)
+                    .build();
+
+            invalidatedTokenRepository.save(invalidatedToken);
+        } catch (AppException e) {
+            log.info("Token already expired");
+        }
+    }
+    @Override
+    public BaseResponse<UserResponse> getMyInfo() {
+        // 1. Lấy username từ SecurityContext
+        var context = SecurityContextHolder.getContext();
+        String userId = context.getAuthentication().getName();
+
+        // 2. Tìm User trong DB
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        // 3. Map sang DTO và bọc vào BaseResponse
+        UserResponse userResponse = mapToUserResponse(user);
+        return BaseResponse.ok(userResponse);
+    }
+
+    @Override
+    public BaseResponse<UserResponse> updateMyInfo(UserUpdateRequest request) {
+        // 1. Lấy username từ SecurityContext
+        var context = SecurityContextHolder.getContext();
+        String userId = context.getAuthentication().getName();
+
+        // 2. Tìm User
+        User user = userRepository.findByUsername(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        // 3. Cập nhật thông tin
+        user.setFullName(request.getFullName());
+        user.setDisplayName(request.getDisplayName());
+        user.setEmail(request.getEmail());
+        user.setPhone(request.getPhone());
+        user.setPhotoUrl(request.getPhotoUrl());
+
+        User savedUser = userRepository.save(user);
+
+        return BaseResponse.ok(mapToUserResponse(savedUser));
+    }
+    private UserResponse mapToUserResponse(User user) {
+        return UserResponse.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .fullName(user.getFullName())
+                .displayName(user.getDisplayName())
+                .email(user.getEmail())
+                .phone(user.getPhone())
+                .photoUrl(user.getPhotoUrl())
+                .currentBalance(user.getCurrentBalance())
+
+                .build();
     }
 }

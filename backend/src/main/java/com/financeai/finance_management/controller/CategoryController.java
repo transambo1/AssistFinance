@@ -1,38 +1,32 @@
 package com.financeai.finance_management.controller;
 
 import com.financeai.finance_management.dto.request.CategoryCreationRequest;
+import com.financeai.finance_management.dto.request.CategoryFilterRequest;
 import com.financeai.finance_management.dto.request.CategoryUpdateRequest;
+import com.financeai.finance_management.dto.response.BasePaginationResponse;
+import com.financeai.finance_management.dto.response.BaseResponse;
 import com.financeai.finance_management.dto.response.CategoryResponse;
 import com.financeai.finance_management.service.ICategoryService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-<<<<<<< Updated upstream
-=======
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
->>>>>>> Stashed changes
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-<<<<<<< Updated upstream
-=======
 @Tag(name = "Category APIs", description = "Grouped Category APIs")
->>>>>>> Stashed changes
 @RestController
-@RequestMapping("/categories")
+@RequestMapping("/api/v1/categories")
 @RequiredArgsConstructor
 public class CategoryController {
 
     private final ICategoryService categoryService;
 
-<<<<<<< Updated upstream
-    @PostMapping
-    public CategoryResponse createCategory(@RequestBody CategoryCreationRequest request) {
-        return categoryService.createCategory(request);
-    }
-
-=======
     @Operation(summary = "Create Category", description = "Create a category")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Category created"),
@@ -52,7 +46,6 @@ public class CategoryController {
             @ApiResponse(responseCode = "400", description = "Validation failed"),
             @ApiResponse(responseCode = "404", description = "Category not found")
     })
->>>>>>> Stashed changes
     @PutMapping("/{id}")
     public ResponseEntity<BaseResponse<CategoryResponse>> updateCategory(
             @PathVariable String id,
@@ -70,11 +63,6 @@ public class CategoryController {
         return ResponseEntity.ok(categoryService.getCategoryById(id));
     }
 
-<<<<<<< Updated upstream
-    @GetMapping
-    public List<CategoryResponse> getAllCategories() {
-        return categoryService.getAllCategories();
-=======
     @Operation(summary = "Get list categories", description = "Get list categories by filter")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Has result, return categories"),
@@ -84,7 +72,6 @@ public class CategoryController {
     public ResponseEntity<BaseResponse<BasePaginationResponse<CategoryResponse>>> getListCategoriesByFilter(
             @ParameterObject CategoryFilterRequest request) {
         return ResponseEntity.ok(categoryService.getAllCategories(request));
->>>>>>> Stashed changes
     }
 
     @Operation(summary = "Archive Category", description = "Archive a category")
