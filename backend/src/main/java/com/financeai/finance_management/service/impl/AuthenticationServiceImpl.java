@@ -247,7 +247,7 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
         String userId = context.getAuthentication().getName();
 
         // 2. Tìm User
-        User user = userRepository.findByUsername(userId)
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
         // 3. Cập nhật thông tin
