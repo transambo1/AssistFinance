@@ -30,7 +30,7 @@ public class TransactionController {
             @ApiResponse(responseCode = "400", description = "Validation failed")
     })
     @PostMapping
-    public ResponseEntity<BaseResponse<Void>> createTransaction(
+    public ResponseEntity<BaseResponse<TransactionResponse>> createTransaction(
             @RequestBody UpsertTransactionRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(transactionService.createTransaction(request));
@@ -43,7 +43,7 @@ public class TransactionController {
             @ApiResponse(responseCode = "404", description = "Transaction not found")
     })
     @PutMapping("/{transactionId}")
-    public ResponseEntity<BaseResponse<Void>> updateTransaction(
+    public ResponseEntity<BaseResponse<TransactionResponse>> updateTransaction(
             @PathVariable String transactionId,
             @RequestBody UpsertTransactionRequest request) {
         return ResponseEntity.ok(transactionService.updateTransaction(transactionId, request));
