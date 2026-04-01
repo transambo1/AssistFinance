@@ -44,7 +44,7 @@ public enum ErrorCode {
 
     //BUDGET
     CANNOT_CHANGE_BUDGET_TYPE("BUDGET_001", "Cannot change budget type", HttpStatus.SERVICE_UNAVAILABLE),
-    ;
+    CANNOT_CHANGE_START_DATE("BUDGET_002", "Cannot change startdate", HttpStatus.SERVICE_UNAVAILABLE);
 
     ErrorCode(String code, String message, HttpStatus statusCode) {
         this.code = code;
