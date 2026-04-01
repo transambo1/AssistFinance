@@ -22,4 +22,6 @@ public interface IBudgetService {
     BaseResponse<String> deactivateBudget(String id);
 
     BaseResponse<String> softDeleteBudget(String id);
+
+    String getCurrentUserId();
 }

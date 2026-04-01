@@ -21,14 +21,13 @@ public class Transaction extends BaseEntity {
     @Column(name = "id", nullable = false)
     private String id;
 
-    @Column(name = "user_id", nullable = false)
-    private String userId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
-    @Column(name = "category_id")
-    private String categoryId;
-
-    @Column(name = "category_name")
-    private String categoryName;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id", nullable = false)
+    private Category category;
 
     @Builder.Default
     @Column(name = "amount", nullable = false, precision = 19, scale = 4)
