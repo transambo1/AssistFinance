@@ -171,88 +171,60 @@ public class AiServiceImpl implements IAiService {
             throw new RuntimeException("Người dùng chưa có category để map dữ liệu AI");
         }
 
-        String normalizedCategory = aiCategory == null ? "" : aiCategory.trim().toLowerCase();
+        String normalizedCategory = normalize(aiCategory);
         String normalizedType = type == null ? "" : type.trim().toUpperCase();
 
-        // 1. Match chính xác trước
+        // 1. exact match theo category của user
         for (Category category : categories) {
-            String dbName = category.getName() == null ? "" : category.getName().trim().toLowerCase();
-            boolean sameType = category.getType() != null
-                    && category.getType().name().equalsIgnoreCase(normalizedType);
+            if (!sameType(category, normalizedType)) {
+                continue;
+            }
 
-            if (sameType && !dbName.isEmpty() && dbName.equals(normalizedCategory)) {
+            String dbName = normalize(category.getName());
+            if (!dbName.isEmpty() && dbName.equals(normalizedCategory)) {
                 return category;
             }
         }
 
-        // 2. Match gần đúng sau
+        // 2. contains match nhẹ theo category của user
         for (Category category : categories) {
-            String dbName = category.getName() == null ? "" : category.getName().trim().toLowerCase();
-            boolean sameType = category.getType() != null
-                    && category.getType().name().equalsIgnoreCase(normalizedType);
+            if (!sameType(category, normalizedType)) {
+                continue;
+            }
 
-            if (sameType && !dbName.isEmpty()
+            String dbName = normalize(category.getName());
+            if (!dbName.isEmpty()
+                    && !normalizedCategory.isEmpty()
                     && (dbName.contains(normalizedCategory) || normalizedCategory.contains(dbName))) {
                 return category;
             }
         }
 
-        // 3. Rule-based mapping
-        if ("EXPENSE".equalsIgnoreCase(normalizedType)) {
-            if (containsAny(normalizedCategory, "ăn", "uống", "food", "drink", "cafe", "trà sữa", "meal")) {
-                Category found = findFirstByTypeAndNameContainsOrNull(
-                        categories, "EXPENSE", "ăn", "food", "drink", "uống", "cafe"
-                );
-                if (found != null) return found;
-            }
-
-            if (containsAny(normalizedCategory, "grab", "xăng", "xe", "di chuyển", "transport", "ship")) {
-                Category found = findFirstByTypeAndNameContainsOrNull(
-                        categories, "EXPENSE", "di chuyển", "transport", "xăng", "xe", "ship"
-                );
-                if (found != null) return found;
-            }
-
-            if (containsAny(normalizedCategory, "mua sắm", "shopping", "quần áo", "đồ", "skincare", "mỹ phẩm")) {
-                Category found = findFirstByTypeAndNameContainsOrNull(
-                        categories, "EXPENSE", "mua", "shopping", "quần áo", "đồ"
-                );
-                if (found != null) return found;
-            }
-        }
-
-        if ("INCOME".equalsIgnoreCase(normalizedType)) {
-            if (containsAny(normalizedCategory, "thưởng", "gift", "lì xì", "thu nhập khác", "other income", "được cho", "tặng")) {
-                Category found = findFirstByTypeAndNameContainsOrNull(
-                        categories, "INCOME", "thưởng", "lì xì", "thu nhập", "gift", "other", "tặng"
-                );
-                if (found != null) return found;
-            }
-
-            if (containsAny(normalizedCategory, "lương", "salary")) {
-                Category found = findFirstByTypeAndNameContainsOrNull(
-                        categories, "INCOME", "lương", "salary"
-                );
-                if (found != null) return found;
-            }
-        }
-
-        // 4. Nếu không map được thì rơi vào category "Khác"
+        // 3. fallback về category "Khác" của chính user
         Category otherCategory = findOtherCategory(categories, normalizedType);
         if (otherCategory != null) {
             return otherCategory;
         }
 
-        throw new RuntimeException("Không tìm thấy category phù hợp cho type: " + type);
+        throw new RuntimeException("Không map được category AI và user chưa có category 'Khác' cho type: " + type);
     }
+
+    private boolean sameType(Category category, String normalizedType) {
+        return category.getType() != null
+                && category.getType().name().equalsIgnoreCase(normalizedType);
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim().toLowerCase();
+    }
+
     private Category findOtherCategory(List<Category> categories, String type) {
         for (Category category : categories) {
-            if (category.getType() == null || !category.getType().name().equalsIgnoreCase(type)) {
+            if (!sameType(category, type)) {
                 continue;
             }
 
-            String name = category.getName() == null ? "" : category.getName().trim().toLowerCase();
-
+            String name = normalize(category.getName());
             if (name.equals("khác")
                     || name.equals("other")
                     || name.equals("other expense")
@@ -264,38 +236,6 @@ public class AiServiceImpl implements IAiService {
         return null;
     }
 
-    private Category findFirstByTypeAndNameContainsOrNull(List<Category> categories, String type, String... keywords) {
-        for (Category category : categories) {
-            String dbName = category.getName() == null ? "" : category.getName().trim().toLowerCase();
-            boolean sameType = category.getType() != null && category.getType().name().equalsIgnoreCase(type);
-
-            if (!sameType) {
-                continue;
-            }
-
-            for (String keyword : keywords) {
-                if (dbName.contains(keyword.toLowerCase())) {
-                    return category;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private boolean containsAny(String text, String... keywords) {
-        if (text == null || text.isEmpty()) {
-            return false;
-        }
-
-        for (String keyword : keywords) {
-            if (text.contains(keyword.toLowerCase())) {
-                return true;
-            }
-        }
-
-        return false;
-    }
 
     private String cleanJson(String rawText) {
         if (rawText == null) {
