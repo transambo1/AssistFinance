@@ -41,9 +41,6 @@ public class Transaction extends BaseEntity {
     @Column(name = "note", columnDefinition = "TEXT")
     private String note;
 
-    @Column(name = "transaction_date", nullable = false)
-    private Long transactionDate;
-
     @Column(name = "image_url", columnDefinition = "TEXT")
     private String imageUrl;
 

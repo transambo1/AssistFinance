@@ -48,7 +48,7 @@ public class TransactionServiceImpl implements ITransactionService {
 
         var userContext = budgetService.getCurrentUserId();
         User user = userRepository.findById(userContext)
-                .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
         Category category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
