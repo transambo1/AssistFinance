@@ -122,13 +122,16 @@ public class BudgetServiceImpl implements IBudgetService {
         }
 
         Budget budget = findOwnedBudget(id);
-        normalizeUpdateDate(request, budget);
+
         BudgetType currentType = budget.getType();
 
         if (request.getType() != null && request.getType() != currentType) {
             throw new AppException(ErrorCode.CANNOT_CHANGE_BUDGET_TYPE);
         }
-        if (request.getStartDate() != null) budget.setStartDate(request.getStartDate());
+        if (request.getStartDate() != null && !request.getStartDate().equals(budget.getStartDate())) {
+            throw new AppException(ErrorCode.CANNOT_CHANGE_START_DATE);
+        }
+        normalizeUpdateDate(request, budget);
         if (request.getEndDate() != null) budget.setEndDate(request.getEndDate());
 
         if (request.getName() != null) {
