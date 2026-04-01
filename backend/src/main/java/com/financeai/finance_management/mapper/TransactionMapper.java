@@ -18,7 +18,9 @@ public interface TransactionMapper {
     @Mapping(target = "transactionDate", source = "createdAt")
     @Mapping(target = "userId", source = "user.id")
     @Mapping(target = "categoryId", source = "category.id")
+    @Mapping(target = "categoryIcon", source = "category.icon")
     @Mapping(target = "categoryName", source = "category.name")
+    @Mapping(target = "categoryColor", source = "category.color")
     TransactionResponse toResponse(Transaction transaction);
 
 }
