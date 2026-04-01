@@ -13,9 +13,10 @@ import java.math.BigDecimal;
 public class TransactionResponse {
     private String id;
     private String userId;
-
+private String categoryIcon;
     private String categoryId;
     private String categoryName;
+    private String categoryColor;
     private String note;
     private String transactionDate;
     private TransactionType type;
