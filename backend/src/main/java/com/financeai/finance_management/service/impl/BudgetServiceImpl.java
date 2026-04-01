@@ -420,7 +420,7 @@ public class BudgetServiceImpl implements IBudgetService {
                 .toLocalDate();
     }
 
-    private String getCurrentUserId() {
+    public String getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
         if (authentication == null || !authentication.isAuthenticated()) {
