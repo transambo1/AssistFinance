@@ -44,7 +44,7 @@ public class TransactionServiceImpl implements ITransactionService {
 
     @Override
     @Transactional
-    public BaseResponse<Void> createTransaction(UpsertTransactionRequest request) {
+    public BaseResponse<TransactionResponse> createTransaction(UpsertTransactionRequest request) {
 
         var userContext = budgetService.getCurrentUserId();
         User user = userRepository.findById(userContext)
@@ -67,12 +67,12 @@ public class TransactionServiceImpl implements ITransactionService {
 
         updateUserBalance(user, request.getAmount(), request.getType(), false);
 
-        return BaseResponse.ok(null);
+        return BaseResponse.ok(transactionMapper.toResponse(transaction));
     }
 
     @Override
     @Transactional
-    public BaseResponse<Void> updateTransaction(String id, UpsertTransactionRequest request) {
+    public BaseResponse<TransactionResponse> updateTransaction(String id, UpsertTransactionRequest request) {
         Transaction transaction = transactionRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
 
@@ -96,7 +96,7 @@ public class TransactionServiceImpl implements ITransactionService {
         updateUserBalance(user, transaction.getAmount(), transaction.getType(), false);
 
         log.info("Updated transaction {}: New amount {}", id, transaction.getAmount());
-        return BaseResponse.ok(null);
+        return BaseResponse.ok(transactionMapper.toResponse(transaction));
     }
 
     @Override
