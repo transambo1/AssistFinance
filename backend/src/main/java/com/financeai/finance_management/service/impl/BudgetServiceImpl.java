@@ -123,15 +123,13 @@ public class BudgetServiceImpl implements IBudgetService {
 
         Budget budget = findOwnedBudget(id);
         normalizeUpdateDate(request, budget);
+        BudgetType currentType = budget.getType();
 
-        BudgetType finalType = budget.getType();
-        if (request.getType() != null) {
-            if (request.getType() != BudgetType.LIMIT && request.getType() != BudgetType.SAVING) {
-                throw new AppException(ErrorCode.INVALID_REQUEST);
-            }
-            finalType = request.getType();
-            budget.setType(finalType);
+        if (request.getType() != null && request.getType() != currentType) {
+            throw new AppException(ErrorCode.CANNOT_CHANGE_BUDGET_TYPE);
         }
+        if (request.getStartDate() != null) budget.setStartDate(request.getStartDate());
+        if (request.getEndDate() != null) budget.setEndDate(request.getEndDate());
 
         if (request.getName() != null) {
             String name = request.getName().trim();
@@ -155,25 +153,20 @@ public class BudgetServiceImpl implements IBudgetService {
             budget.setCurrentAmount(request.getCurrentAmount());
         }
 
-        if (finalType == BudgetType.LIMIT) {
-            String finalCategoryId = request.getCategoryId() != null
-                    ? normalize(request.getCategoryId())
-                    : normalize(budget.getCategoryId());
-
-            validateLimitCategory(finalCategoryId, budget.getUser().getId());
-            budget.setCategoryId(finalCategoryId);
-        } else if (finalType == BudgetType.SAVING) {
-            if (request.getCategoryId() != null && normalize(request.getCategoryId()) != null) {
-                throw new AppException(ErrorCode.INVALID_REQUEST);
+        //LOGIC TUNG TYPE
+        if (currentType == BudgetType.LIMIT) {
+            if (request.getCategoryId() != null) {
+                String categoryId = normalize(request.getCategoryId());
+                validateLimitCategory(categoryId, budget.getUser().getId());
+                budget.setCategoryId(categoryId);
             }
-            budget.setCategoryId(null);
-        }
 
-        if (request.getStartDate() != null || request.getEndDate() != null) {
-            validateDateRange(request.getStartDate(), request.getEndDate());
-            budget.setStartDate(request.getStartDate());
-            budget.setEndDate(request.getEndDate());
-        }
+        }  else if (currentType == BudgetType.SAVING) {
+                if (request.getCategoryId() != null && normalize(request.getCategoryId()) != null) {
+                    throw new AppException(ErrorCode.INVALID_REQUEST);
+                }
+                budget.setCategoryId(null);
+            }
 
         if (request.getIsActive() != null) {
             budget.setActive(request.getIsActive());
