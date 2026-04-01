@@ -1,9 +1,14 @@
 package com.financeai.finance_management.entity;
 
+import jakarta.persistence.*;
 import com.financeai.finance_management.enums.CategoryType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.SQLRestriction;
+
+import java.util.HashSet;
+import java.util.Set;
+
 @Entity
 @Table(name = "categories")
 @Builder
@@ -43,4 +48,8 @@ public class Category extends BaseEntity {
     @Builder.Default
     @Column(name = "usage_count")
     private Integer usageCount = 0;
+
+    @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set<Transaction> transactions = new HashSet<>();
 }

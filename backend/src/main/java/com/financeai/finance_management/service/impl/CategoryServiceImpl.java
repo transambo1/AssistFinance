@@ -32,7 +32,6 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-@Transactional
 public class CategoryServiceImpl implements ICategoryService {
 
     CategoryRepository categoryRepository;
