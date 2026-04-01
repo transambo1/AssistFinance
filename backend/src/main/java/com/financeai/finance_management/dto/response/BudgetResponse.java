@@ -15,6 +15,8 @@ public class BudgetResponse {
     private String id;
     private String userId;
     private String categoryId;
+    private String categoryIcon;
+    private String categoryName;
     private String name;
     private BudgetType type;
     private BigDecimal targetAmount;

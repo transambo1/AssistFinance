@@ -30,6 +30,10 @@ public class Budget extends BaseEntity {
     @Column(name = "category_id")
     private String categoryId;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id", insertable = false, updatable = false)
+    private Category category;
+
     @Column(name = "name", nullable = false)
     private String name;
 
