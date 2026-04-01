@@ -531,10 +531,19 @@ public class BudgetServiceImpl implements IBudgetService {
     }
 
     private BudgetResponse mapToResponse(Budget budget) {
+        String categoryIcon = null;
+        String categoryName = null;
+
+        if (budget.getCategory() != null) {
+            categoryIcon = budget.getCategory().getIcon();
+            categoryName = budget.getCategory().getName();
+        }
         return BudgetResponse.builder()
                 .id(budget.getId())
                 .userId(budget.getUser() != null ? budget.getUser().getId() : null)
                 .categoryId(budget.getCategoryId())
+                .categoryIcon(categoryIcon)
+                .categoryName(categoryName)
                 .name(budget.getName())
                 .type(budget.getType())
                 .targetAmount(budget.getTargetAmount())
