@@ -7,9 +7,9 @@ import com.financeai.finance_management.dto.response.BaseResponse;
 import com.financeai.finance_management.dto.response.TransactionResponse;
 
 public interface ITransactionService {
-    BaseResponse<Void> createTransaction(UpsertTransactionRequest request);
+    BaseResponse<TransactionResponse> createTransaction(UpsertTransactionRequest request);
 
-    BaseResponse<Void> updateTransaction(String id, UpsertTransactionRequest request);
+    BaseResponse<TransactionResponse> updateTransaction(String id, UpsertTransactionRequest request);
 
     BaseResponse<Void> deleteTransaction(String id);
 
