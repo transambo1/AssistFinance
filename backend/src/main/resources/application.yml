@@ -47,5 +47,5 @@ ai:
     url: http://127.0.0.1:8001
 gemini:
   api:
-    key: AIzaSyCFTE_Ibknkw95-NsxBn_AqhXd8YPZC3qg
+    key: ${GEMINI_API_KEY}
   model: gemini-2.5-flash
