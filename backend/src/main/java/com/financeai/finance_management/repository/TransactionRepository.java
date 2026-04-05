@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 public interface TransactionRepository extends JpaRepository<Transaction, String>, JpaSpecificationExecutor<Transaction> {
 
@@ -57,5 +58,27 @@ public interface TransactionRepository extends JpaRepository<Transaction, String
             @Param("userId") String userId,
             @Param("type") TransactionType type,
             @Param("keyword") String keyword
+    );
+    @Query("""
+    SELECT t
+    FROM Transaction t
+    WHERE t.user.id = :userId
+      AND t.deletedAt IS NULL
+    ORDER BY t.createdAt DESC
+""")
+    List<Transaction> findRecentTransactions(@Param("userId") String userId);
+
+
+    @Query("""
+    SELECT t
+    FROM Transaction t
+    WHERE t.user.id = :userId
+      AND t.type = :type
+      AND t.deletedAt IS NULL
+    ORDER BY t.createdAt DESC
+""")
+    List<Transaction> findRecentTransactionsByType(
+            @Param("userId") String userId,
+            @Param("type") TransactionType type
     );
 }
