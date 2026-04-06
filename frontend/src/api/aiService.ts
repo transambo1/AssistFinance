@@ -1,3 +1,5 @@
+import { apiClient } from "./apiClient";
+
 // Lấy Key từ file .env an toàn
 const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY;
 
@@ -49,12 +51,9 @@ export const aiService = {
             const data = await response.json();
             const content = data?.choices?.[0]?.message?.content;
 
-            // 3. Kiểm tra dữ liệu thô
             if (!content) {
                 throw new Error("Dữ liệu content bị rỗng");
             }
-
-            // 4. Parse JSON an toàn
             return JSON.parse(content) as { title: string; description: string };
 
         } catch (error) {
@@ -62,7 +61,19 @@ export const aiService = {
             return fallbackData();
         }
     },
+    chatWithAI: async (message: string) => {
+        try {
+
+            const response = await apiClient.post('/v1/ai/chat', { message });
+
+            return response.data;
+        } catch (error) {
+            console.error("❌ Lỗi khi gọi AI API backend:", error);
+            throw error;
+        }
+    }
 };
+
 
 // Dữ liệu dự phòng khi gặp sự cố API
 const fallbackData = () => ({

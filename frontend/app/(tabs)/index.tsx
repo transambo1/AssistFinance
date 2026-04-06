@@ -15,6 +15,7 @@ import { formatMoney } from '../../src/utils/formatters';
 import { aiService } from '../../src/api/aiService';
 import { transactionService } from '@/src/api/transactionService';
 
+
 export default function DashboardScreen() {
   const router = useRouter();
   const { isDark, colors } = useTheme();
@@ -23,7 +24,8 @@ export default function DashboardScreen() {
   const [aiResult, setAiResult] = useState<{ title: string; description: string } | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [showAiModal, setShowAiModal] = useState(false);
-
+  // Thêm state này vào đầu component AIChatScreen
+  const [editingTransaction, setEditingTransaction] = useState<any>(null); // Lưu thông tin giao dịch đang sửa
   // --- QUERIES CHỐNG XUNG ĐỘT CACHE ---
   const { data: rawUserData, isLoading: isUserLoading } = useQuery<any>({
     queryKey: ['userProfile'],
@@ -131,7 +133,7 @@ export default function DashboardScreen() {
   };
 
   const aiServices = [
-    { id: 'transactions', name: 'Giao dịch', icon: 'receipt', color: '#6200ee', route: '/add' },
+    { id: 'transactions', name: 'Giao dịch', icon: 'receipt', color: '#6200ee', route: '/add-transaction' },
     { id: 'budget', name: 'Ngân sách', icon: 'account-balance', color: '#00c853', route: '/budget' },
     { id: 'chatAI', name: 'Gợi ý AI', icon: 'tips-and-updates', color: '#ffab00', action: handleAiInsight },
     { id: 'hub', name: 'Thống kê', icon: 'pie-chart', color: '#d500f9', route: '/history' },
@@ -160,9 +162,10 @@ export default function DashboardScreen() {
 
         {/* --- TỔNG SỐ DƯ (Full số, max 999 tỷ) --- */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>TỔNG SỐ DƯ KHẢ DỤNG</Text>
+
           <View style={styles.balanceCard}>
             <MaterialIcons name="account-balance-wallet" size={100} color="rgba(255,255,255,0.1)" style={styles.balanceIconBg} />
+            <Text style={styles.sectionLabel}>TỔNG SỐ DƯ KHẢ DỤNG</Text>
             <Text style={styles.balanceAmount} numberOfLines={1} adjustsFontSizeToFit>
               {formatCappedBalance(userData?.currentBalance || 0)}
             </Text>
@@ -286,7 +289,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   headerTitle: { fontSize: 20, fontWeight: 'bold', color: colors.text },
   scrollContent: { paddingHorizontal: 24, paddingBottom: 120, paddingTop: 8, gap: 20 },
   section: { gap: 12 },
-  sectionLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase', color: colors.textDim },
+  sectionLabel: { fontSize: 11, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase', color: colors.textDim },
   balanceCard: { backgroundColor: '#1a237e', padding: 24, borderRadius: 28, overflow: 'hidden', position: 'relative' },
   balanceIconBg: { position: 'absolute', top: 16, right: 16 },
   balanceAmount: { fontSize: 40, maxWidth: '100%', fontWeight: '700', color: '#ffffff', marginBottom: 4 },
