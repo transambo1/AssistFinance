@@ -6,8 +6,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 const { width } = Dimensions.get('window');
 
 const SLIDES = [
-    { title: "Theo dõi thông minh", desc: "Quản lý mọi khoản thu chi trong lòng bàn tay với giao diện Editorial hiện đại.", icon: "account-balance-wallet" },
-    { title: "Trợ lý ảo AI", desc: "Không còn phải nhập tay lằng nhằng. Chỉ cần nhắn 'Trưa nay ăn phở 50k', AI sẽ làm nốt phần còn lại.", icon: "smart-toy" },
+    { title: "Theo dõi thông minh", desc: "Quản lý mọi khoản thu chi trong lòng bàn tay với giao diện hiện đại.", icon: "account-balance-wallet" },
+    { title: "Trợ lý ảo AI", desc: "Không còn phải nhập tay lằng nhằng. Chỉ cần nhắn hay gửi ảnh, AI sẽ làm nốt phần còn lại.", icon: "smart-toy" },
     { title: "Dự báo tương lai", desc: "Hệ thống tự động phân tích và đưa ra lời khuyên để bạn không bao giờ rỗng túi.", icon: "insights" }
 ];
 
@@ -20,7 +20,7 @@ export default function OnboardingScreen() {
             setCurrentSlide(currentSlide + 1);
         } else {
             // router.replace giúp người dùng vào app và KHÔNG THỂ bấm nút quay lại Onboarding được nữa
-            router.replace('/(tabs)');
+            router.replace('/(auth)/login');
         }
     };
 
