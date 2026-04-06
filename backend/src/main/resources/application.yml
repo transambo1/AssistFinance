@@ -42,6 +42,10 @@ server:
   cors:
     allowed-origins:*
   port: 8082
+ai:
+  service:
+    url: http://127.0.0.1:8001
 gemini:
   api:
-    key: AIzaSyBYqfwRuzoC1Mnxu0CDQwgFypRic9uO95A
+    key: ${GEMINI_API_KEY}
+  model: gemini-2.5-flash

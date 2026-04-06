@@ -48,6 +48,10 @@ public enum ErrorCode {
 
     //USER
     USER_NOT_FOUND("USER_001", "User not found", HttpStatus.NOT_FOUND),
+
+    //TRANSACTION
+    TRANSACTION_NOT_FOUND("TRANSACTION_001", "Transaction not found", HttpStatus.NOT_FOUND),
+    CURRENT_BALANCE_NOT_ENOUGH("TRANSACTION_002", "Current balance not enough", HttpStatus.BAD_REQUEST),
 ;
     ErrorCode(String code, String message, HttpStatus statusCode) {
         this.code = code;

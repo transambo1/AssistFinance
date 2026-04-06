@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class UpsertTransactionRequest {
+    private String userId; // cho job
     @NotBlank(message = "CATEGORY_ID_REQUIRED")
     private String categoryId;
 

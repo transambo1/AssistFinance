@@ -19,6 +19,7 @@ import com.financeai.finance_management.mapper.TransactionMapper;
 import com.financeai.finance_management.repository.*;
 import com.financeai.finance_management.service.IBudgetService;
 import com.financeai.finance_management.service.ITransactionService;
+import com.financeai.finance_management.specification.TransactionSpecification;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -124,7 +125,15 @@ public class TransactionServiceImpl implements ITransactionService {
     @Override
     @Transactional(readOnly = true)
     public BaseResponse<BasePaginationResponse<TransactionResponse>> getTransactionHistories(TransactionFilterRequest request) {
-        Specification<Transaction> spec = request.specification();
+        var userContext = budgetService.getCurrentUserId();
+
+        Specification<Transaction> spec = TransactionSpecification.builder()
+                    .withKeyword(request.getSearch())
+                    .withRegistrationDateRange(request.getStartDate(), request.getEndDate())
+                    .withUserId(userContext)
+                    .withCategoryId(request.getCategoryId())
+                    .build();
+
         Pageable pageable = request.pageable();
 
         Page<TransactionResponse> pageResponse =

@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+torch
+transformers
+joblib
+gdown
+sentencepiece
+protobuf
+scikit-learn
+numpy
