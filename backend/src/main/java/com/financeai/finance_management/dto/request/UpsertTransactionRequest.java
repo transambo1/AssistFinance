@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Data
 @NoArgsConstructor
@@ -24,4 +25,5 @@ public class UpsertTransactionRequest {
     private String note;
     private String imageUrl;
     private Boolean isAuto;
+    private Long transactionDate;
 }

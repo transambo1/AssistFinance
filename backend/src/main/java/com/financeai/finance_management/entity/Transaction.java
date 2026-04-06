@@ -1,15 +1,18 @@
 package com.financeai.finance_management.entity;
 
+import com.financeai.finance_management.enums.TransactionStatus;
 import com.financeai.finance_management.enums.TransactionType;
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "transactions")
-@Builder
+@SuperBuilder
 @Getter
 @Setter
 @NoArgsConstructor
@@ -47,4 +50,12 @@ public class Transaction extends BaseEntity {
     @Builder.Default
     @Column(name = "is_auto")
     private boolean isAuto = false;
+
+    @Column(name = "transaction_date", nullable = false)
+    private Long transactionDate;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status")
+    private TransactionStatus status = TransactionStatus.PENDING;
 }

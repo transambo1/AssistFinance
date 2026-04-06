@@ -11,6 +11,7 @@ import com.financeai.finance_management.dto.response.TransactionResponse;
 import com.financeai.finance_management.entity.Category;
 import com.financeai.finance_management.entity.Transaction;
 import com.financeai.finance_management.entity.User;
+import com.financeai.finance_management.enums.TransactionStatus;
 import com.financeai.finance_management.enums.TransactionType;
 import com.financeai.finance_management.exception.exception.AppException;
 import com.financeai.finance_management.exception.exception.ErrorCode;
@@ -62,6 +63,10 @@ public class TransactionServiceImpl implements ITransactionService {
                 .note(request.getNote())
                 .imageUrl(request.getImageUrl())
                 .isAuto(request.getIsAuto())
+                .transactionDate(request.getTransactionDate() != null
+                        ? request.getTransactionDate()
+                        : Instant.now().toEpochMilli())
+                .status(TransactionStatus.SUCCESS)
                 .build();
         transactionRepository.save(transaction);
 
