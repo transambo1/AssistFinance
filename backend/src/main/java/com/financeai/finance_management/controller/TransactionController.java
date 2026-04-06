@@ -6,6 +6,7 @@ import com.financeai.finance_management.dto.response.BaseResponse;
 import com.financeai.finance_management.dto.response.CategoryResponse;
 import com.financeai.finance_management.dto.response.TransactionResponse;
 import com.financeai.finance_management.service.ICategoryService;
+import com.financeai.finance_management.service.ISalaryConfigService;
 import com.financeai.finance_management.service.ITransactionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class TransactionController {
     private final ITransactionService transactionService;
+    private final ISalaryConfigService salaryConfigService;
 
     @Operation(summary = "Create Transaction", description = "Create a Transaction")
     @ApiResponses(value = {
@@ -58,5 +60,26 @@ public class TransactionController {
     public ResponseEntity<BaseResponse<BasePaginationResponse<TransactionResponse>>> getListTransactionsByFilter(
             @ParameterObject TransactionFilterRequest request) {
         return ResponseEntity.ok(transactionService.getTransactionHistories(request));
+    }
+
+    @Operation(summary = "Upsert Auto Config", description = "Create or Update auto income/expense config")
+    @PostMapping("/auto-configs")
+    public ResponseEntity<BaseResponse<Void>> upsertSalaryConfig(
+            @RequestBody SalaryConfigReq request) {
+        return ResponseEntity.ok(salaryConfigService.upsertConfig(request));
+    }
+
+    @Operation(summary = "Toggle Auto Config", description = "Enable or Disable an auto transaction config")
+    @PatchMapping("/auto-configs/{configId}/toggle")
+    public ResponseEntity<BaseResponse<Void>> toggleAutoConfig(
+            @PathVariable String configId) {
+        return ResponseEntity.ok(salaryConfigService.toggleActive(configId));
+    }
+
+    @Operation(summary = "Delete Auto Config", description = "Soft delete an auto transaction config")
+    @DeleteMapping("/auto-configs/{configId}")
+    public ResponseEntity<BaseResponse<Void>> deleteAutoConfig(
+            @PathVariable String configId) {
+        return ResponseEntity.ok(salaryConfigService.deleteConfig(configId));
     }
 }

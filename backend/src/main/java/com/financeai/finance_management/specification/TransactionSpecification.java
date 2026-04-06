@@ -2,6 +2,8 @@ package com.financeai.finance_management.specification;
 
 import com.financeai.finance_management.entity.Category;
 import com.financeai.finance_management.entity.Transaction;
+import com.financeai.finance_management.entity.User;
+import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 
