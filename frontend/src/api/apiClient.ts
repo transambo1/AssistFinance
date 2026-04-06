@@ -2,7 +2,7 @@ import axios from 'axios';
 // Import file storage của bạn vào đây (nhớ sửa lại đường dẫn cho đúng nhé)
 import { storage } from '../utils/storage';
 
-const BASE_URL = 'http://192.168.31.109:8082/api';
+const BASE_URL = 'http://192.168.1.5:8082/api';
 
 export const apiClient = axios.create({
     baseURL: BASE_URL,

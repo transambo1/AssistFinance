@@ -74,6 +74,14 @@ export interface Budget {
     updatedAt: number | string;
 }
 
+export interface Message {
+    id: string;
+    sender: 'user' | 'ai';
+    text: string;
+    actionType?: string;
+    transactionData?: any;
+}
+
 export interface RecurringTransaction {
     id: string;
     userId: string;
