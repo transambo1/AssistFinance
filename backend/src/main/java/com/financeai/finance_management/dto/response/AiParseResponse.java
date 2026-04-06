@@ -12,4 +12,5 @@ public class AiParseResponse {
     private String category;
     private String type;
     private String description;
+    private Long transactionDate;
 }

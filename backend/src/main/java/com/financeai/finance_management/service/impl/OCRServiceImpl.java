@@ -53,7 +53,7 @@ public class OCRServiceImpl implements IOCRService {
             try {
                 AiParseRequest aiRequest = new AiParseRequest();
                 aiRequest.setText(rawText);
-                List<TransactionResponse> aiResults = aiService.parseAndSaveTransaction(aiRequest);
+                List<TransactionResponse> aiResults = aiService.parseAndSaveTransaction(aiRequest).getData();
 
                 if (aiResults != null && !aiResults.isEmpty()) {
                     // CÁCH SỬA: Nếu AI trả về nhiều món, ta cộng dồn lại để lấy TỔNG

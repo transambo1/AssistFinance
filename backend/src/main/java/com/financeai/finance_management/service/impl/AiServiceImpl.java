@@ -96,6 +96,9 @@ public class AiServiceImpl implements IAiService {
             txRequest.setType(TransactionType.valueOf(item.getType().trim().toUpperCase()));
             txRequest.setCategoryId(mappedCategory.getId());
             txRequest.setNote(item.getDescription());
+            txRequest.setTransactionDate(
+                    item.getTransactionDate() != null ? item.getTransactionDate() : System.currentTimeMillis()
+            );
             txRequest.setImageUrl(null);
             txRequest.setIsAuto(true);
 
