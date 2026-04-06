@@ -1,37 +1,25 @@
 import { Stack } from 'expo-router';
+import { ThemeProvider } from '../src/context/ThemeContext';
+
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const queryClient = new QueryClient();
 
 export default function RootLayout() {
   return (
-    <Stack
-      // initialRouteName giúp xác định màn hình nào hiện ra đầu tiên
-      initialRouteName="onboarding"
-    >
-      {/* 1. Màn hình Chào mừng (Hiện đầu tiên) */}
-      <Stack.Screen
-        name="onboarding"
-        options={{
-          headerShown: false,
-          animation: 'fade', // Hiệu ứng chuyển cảnh mờ dần cho đẹp
-        }}
-      />
-
-      {/* 2. Cụm màn hình chính (Sau khi bấm Bắt đầu ở Onboarding) */}
-      <Stack.Screen
-        name="(tabs)"
-        options={{
-          headerShown: false,
-          animation: 'slide_from_right',
-        }}
-      />
-
-      {/* 3. Màn hình Thêm giao dịch (Dạng Modal trượt từ dưới lên) */}
-      <Stack.Screen
-        name="add-transaction"
-        options={{
-          presentation: 'modal',
-          headerShown: false
-        }}
-      />
-    </Stack>
+    // 3. Bọc QueryClientProvider ngoài cùng
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <Stack
+          initialRouteName="onboarding"
+          screenOptions={{ headerShown: false }}
+        >
+          <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
+          <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
+          <Stack.Screen name="(tabs)" options={{ animation: 'slide_from_right' }} />
+          {/* <Stack.Screen name="add-transaction" options={{ presentation: 'modal' }} /> */}
+        </Stack>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }

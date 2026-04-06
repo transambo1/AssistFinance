@@ -1,71 +1,139 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, TextInput } from 'react-native';
-import { MOCK_TRANSACTIONS } from '../../src/mock/data';
+import React, { useState, useMemo } from 'react';
+import {
+    View, Text, ScrollView, TouchableOpacity, StyleSheet,
+    SafeAreaView, TextInput, ActivityIndicator, RefreshControl
+} from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useTheme } from '../../src/context/ThemeContext';
+import { useQuery } from '@tanstack/react-query';
+import { transactionService } from '../../src/api/transactionService';
+import { Transaction } from '../../src/types/index';
+import { router } from 'expo-router';
 
 export default function HistoryScreen() {
     const [activeFilter, setActiveFilter] = useState('Tất cả');
-    const [searchQuery, setSearchQuery] = useState(''); // Bước 1: State giữ chữ tìm kiếm
+    const [searchQuery, setSearchQuery] = useState('');
+    const { isDark, colors } = useTheme();
+    const styles = getStyles(colors, isDark);
 
-    // Bước 2: Logic lọc "Kép" (Lọc theo Chip + Lọc theo ô Tìm kiếm)
-    const filteredData = MOCK_TRANSACTIONS.filter(item => {
-        // Kiểm tra theo Chip (Thu nhập/Chi tiêu)
-        const matchesFilter =
-            activeFilter === 'Tất cả' ||
-            (activeFilter === 'Thu nhập' && item.type === 'income') ||
-            (activeFilter === 'Chi tiêu' && item.type === 'expense');
-
-        // Kiểm tra theo ô Tìm kiếm (Tìm theo tên hoặc danh mục)
-        const matchesSearch =
-            item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.category.toLowerCase().includes(searchQuery.toLowerCase());
-
-        return matchesFilter && matchesSearch;
+    // 1. GỌI API LẤY DỮ LIỆU (Thêm <any> để TS không bắt bẻ cấu trúc response)
+    const { data: transactionsData, isLoading, refetch, isRefetching } = useQuery<any>({
+        queryKey: ['transactions'],
+        queryFn: () => transactionService.getAll()
     });
 
-    const renderTransactionItem = (item: any) => (
-        <TouchableOpacity key={item.id} style={styles.transactionItem}>
-            <View style={styles.transactionLeft}>
-                <View style={[styles.iconBox, { backgroundColor: item.color + '20' }]}>
-                    <MaterialIcons name={item.icon} size={24} color={item.color} />
-                </View>
-                <View>
-                    <Text style={styles.transactionName}>{item.name}</Text>
-                    <Text style={styles.transactionCategory}>{item.category} • {item.date.split(', ')[1]}</Text>
-                </View>
-            </View>
-            <Text style={[styles.transactionAmount, { color: item.type === 'expense' ? '#ff635f' : '#1b6d24' }]}>
-                {item.type === 'expense' ? '-' : '+'}{item.amount.toLocaleString()}
-            </Text>
-        </TouchableOpacity>
-    );
+    // Trỏ đúng vào mảng: Response -> data (Object phân trang) -> data (Mảng thật)
+    const transactions: Transaction[] = transactionsData?.data?.data || [];
 
+    // 2. LOGIC LỌC DỮ LIỆU
+    const filteredData = useMemo(() => {
+        return transactions.filter((item: Transaction) => {
+            const matchesFilter =
+                activeFilter === 'Tất cả' ||
+                (activeFilter === 'Thu nhập' && item.type === 'INCOME') ||
+                (activeFilter === 'Chi tiêu' && item.type === 'EXPENSE');
+
+            const matchesSearch =
+                item.note?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                item.categoryName?.toLowerCase().includes(searchQuery.toLowerCase());
+
+            return matchesFilter && matchesSearch;
+        });
+    }, [transactions, activeFilter, searchQuery]);
+
+    // 3. HÀM NHÓM GIAO DỊCH THEO NGÀY
+    const groupedTransactions = useMemo(() => {
+        const groups: { [key: string]: Transaction[] } = {};
+
+        filteredData.forEach((item: Transaction) => {
+            const date = new Date(String(item.transactionDate).replace(' ', 'T'));
+            const today = new Date();
+            const yesterday = new Date();
+            yesterday.setDate(today.getDate() - 1);
+
+            let dateLabel = "";
+            if (date.toDateString() === today.toDateString()) {
+                dateLabel = `Hôm nay, ${date.getDate()} Thg ${date.getMonth() + 1}`;
+            } else if (date.toDateString() === yesterday.toDateString()) {
+                dateLabel = `Hôm qua, ${date.getDate()} Thg ${date.getMonth() + 1}`;
+            } else {
+                dateLabel = `${date.getDate()} Thg ${date.getMonth() + 1}, ${date.getFullYear()}`;
+            }
+
+            if (!groups[dateLabel]) groups[dateLabel] = [];
+            groups[dateLabel].push(item);
+        });
+        return groups;
+    }, [filteredData]);
+
+    const renderTransactionItem = (item: Transaction) => {
+        // Xác định màu nền dựa trên type và chế độ sáng/tối
+        const isExpense = item.type === 'EXPENSE';
+        const dynamicBg = isExpense
+            ? (isDark ? '#2D1615' : '#FFF5F5') // Chi tiêu: Đỏ sẫm (Dark) / Đỏ nhạt (Light)
+            : (isDark ? '#162D12' : '#F0FFF4'); // Thu nhập: Xanh đen (Dark) / Xanh nhạt (Light)
+
+        return (
+            <TouchableOpacity
+                key={item.id}
+                // Sử dụng mảng style, cái sau sẽ ghi đè cái trước
+                style={[styles.transactionItem, { backgroundColor: dynamicBg }]}
+                onPress={() => router.push({
+                    pathname: '/transaction-detail',
+                    params: { id: item.id } // Truyền ID qua bên kia
+                })}
+            >
+                <View style={styles.transactionLeft}>
+                    <View style={[styles.iconBox, { backgroundColor: isDark ? '#2C2C3E' : (item.categoryColor || '#1a237e') + '20' }]}>
+                        <MaterialIcons
+                            name={(item.categoryIcon as any) || 'receipt'}
+                            size={24}
+                            color={isDark ? '#a0abff' : (item.categoryColor || '#1a237e')}
+                        />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.transactionName} numberOfLines={1}>
+                            {item.note || item.categoryName}
+                        </Text>
+                        <Text style={styles.transactionCategory}>{item.categoryName}</Text>
+                    </View>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={styles.transactionTime}>
+
+                        {item.transactionDate}
+                    </Text>
+                    <Text style={[
+                        styles.transactionAmount,
+                        { color: isExpense ? '#fe625c' : (isDark ? '#a0f399' : '#1b6d24') }
+                    ]}>
+                        {isExpense ? '-' : '+'}{item.amount.toLocaleString('vi-VN')}đ
+                    </Text>
+                </View>
+            </TouchableOpacity>
+        );
+    };
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Lịch sử giao dịch</Text>
                 <TouchableOpacity style={styles.filterBtn}>
-                    <MaterialIcons name="tune" size={24} color="#000666" />
+                    <MaterialIcons name="tune" size={24} color={isDark ? '#ffffff' : '#000666'} />
                 </TouchableOpacity>
             </View>
 
-            {/* Bước 3: Kết nối TextInput với State */}
             <View style={styles.searchContainer}>
-                <MaterialIcons name="search" size={24} color="#767683" />
+                <MaterialIcons name="search" size={24} color={colors.textDim} />
                 <TextInput
                     style={styles.searchInput}
-                    placeholder="Tìm kiếm giao dịch, danh mục..."
-                    placeholderTextColor="#767683"
-                    value={searchQuery} // Gán giá trị từ state
-                    onChangeText={(text) => setSearchQuery(text)} // Cập nhật state khi gõ
+                    placeholder="Tìm kiếm giao dịch..."
+                    placeholderTextColor={colors.textDim}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
                 />
-                {searchQuery.length > 0 ? (
+                {searchQuery.length > 0 && (
                     <TouchableOpacity onPress={() => setSearchQuery('')}>
-                        <MaterialIcons name="cancel" size={20} color="#c6c5d4" />
-                    </TouchableOpacity>
-                ) : (
-                    <TouchableOpacity>
-                        <MaterialIcons name="mic" size={24} color="#000666" />
+                        <MaterialIcons name="cancel" size={20} color={colors.textDim} />
                     </TouchableOpacity>
                 )}
             </View>
@@ -84,51 +152,56 @@ export default function HistoryScreen() {
                 ))}
             </View>
 
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                {/* Nhóm ngày: Hôm nay */}
-                <View style={styles.dateGroup}>
-                    <Text style={styles.dateHeader}>Hôm nay, 21 Thg 3</Text>
-                    {filteredData.filter(t => t.date.includes('Hôm nay')).length > 0 ? (
-                        filteredData.filter(t => t.date.includes('Hôm nay')).map(renderTransactionItem)
-                    ) : (
-                        <Text style={styles.emptyText}>Không tìm thấy giao dịch nào</Text>
-                    )}
-                </View>
-
-                {/* Nhóm ngày: Hôm qua */}
-                <View style={styles.dateGroup}>
-                    <Text style={styles.dateHeader}>Hôm qua, 20 Thg 3</Text>
-                    {filteredData.filter(t => t.date.includes('Hôm qua')).length > 0 ? (
-                        filteredData.filter(t => t.date.includes('Hôm qua')).map(renderTransactionItem)
-                    ) : (
-                        <Text style={styles.emptyText}>Không tìm thấy giao dịch nào</Text>
-                    )}
-                </View>
+            <ScrollView
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#1a237e" />
+                }
+            >
+                {isLoading ? (
+                    <ActivityIndicator size="large" color="#1a237e" style={{ marginTop: 50 }} />
+                ) : Object.keys(groupedTransactions).length > 0 ? (
+                    Object.keys(groupedTransactions).map((dateLabel) => (
+                        <View key={dateLabel} style={styles.dateGroup}>
+                            <Text style={styles.dateHeader}>{dateLabel}</Text>
+                            {groupedTransactions[dateLabel].map(renderTransactionItem)}
+                        </View>
+                    ))
+                ) : (
+                    <View style={{ alignItems: 'center', marginTop: 100 }}>
+                        <MaterialIcons name="history" size={64} color={colors.textDim} />
+                        <Text style={styles.emptyText}>Chưa có giao dịch nào phù hợp</Text>
+                    </View>
+                )}
             </ScrollView>
         </SafeAreaView>
     );
 }
 
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FBF8FF' },
+const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: 16, paddingBottom: 16 },
-    headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#000666' },
-    filterBtn: { padding: 8, backgroundColor: '#ffffff', borderRadius: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-    searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffffff', marginHorizontal: 24, paddingHorizontal: 16, height: 50, borderRadius: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 1, marginBottom: 16 },
-    searchInput: { flex: 1, marginLeft: 12, fontSize: 15, color: '#1b1b21' },
+    headerTitle: { fontSize: 24, fontWeight: 'bold', color: isDark ? '#ffffff' : '#000666' },
+    filterBtn: { padding: 8, backgroundColor: colors.surface, borderRadius: 12, elevation: 2 },
+    searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, marginHorizontal: 24, paddingHorizontal: 16, height: 50, borderRadius: 16, elevation: 1, marginBottom: 16 },
+    searchInput: { flex: 1, marginLeft: 12, fontSize: 15, color: colors.text },
     chipContainer: { flexDirection: 'row', paddingHorizontal: 24, marginBottom: 16, gap: 12 },
-    chip: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e4e1ea' },
+    chip: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: isDark ? '#333333' : '#e4e1ea' },
     chipActive: { backgroundColor: '#1a237e', borderColor: '#1a237e' },
-    chipText: { fontSize: 14, fontWeight: '600', color: '#767683' },
+    chipText: { fontSize: 14, fontWeight: '600', color: colors.textDim },
     chipTextActive: { color: '#ffffff' },
     scrollContent: { paddingHorizontal: 24, paddingBottom: 120 },
     dateGroup: { marginBottom: 24 },
-    dateHeader: { fontSize: 14, fontWeight: 'bold', color: '#767683', marginBottom: 12, textTransform: 'uppercase' },
-    transactionItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#ffffff', padding: 16, borderRadius: 16, marginBottom: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 },
-    transactionLeft: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+    dateHeader: { fontSize: 14, fontWeight: 'bold', color: colors.textDim, marginBottom: 12, textTransform: 'uppercase' },
+    transactionItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface, padding: 16, borderRadius: 30, marginBottom: 8, elevation: 1 },
+    transactionLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 16 },
     iconBox: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-    transactionName: { fontSize: 16, fontWeight: 'bold', color: '#1b1b21', marginBottom: 4 },
-    transactionCategory: { fontSize: 13, color: '#767683' },
+    transactionName: { fontSize: 16, fontWeight: 'bold', color: colors.text, marginBottom: 2 },
+    transactionCategory: { fontSize: 12, color: colors.textDim },
+    transactionTime: { fontSize: 12, color: colors.textDim, marginBottom: 4 },
     transactionAmount: { fontSize: 16, fontWeight: 'bold' },
-    emptyText: { textAlign: 'center', color: '#767683', marginTop: 10, fontStyle: 'italic' }
+    emptyText: { textAlign: 'center', color: colors.textDim, marginTop: 10, fontStyle: 'italic' }
 });
+
+

@@ -14,7 +14,7 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false, // Ẩn thanh tiêu đề mặc định phía trên
-        tabBarShowLabel: true, // <-- THÊM DÒNG NÀY ĐỂ TẮT CHỮ MẶC ĐỊNH
+        tabBarShowLabel: true,
         tabBarStyle: styles.tabBar,
         tabBarActiveTintColor: '#1A237E',
         tabBarInactiveTintColor: '#767683',
@@ -53,8 +53,9 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="analysis"
+        name="budget"
         options={{
+          title: 'Budget',
           tabBarIcon: ({ focused }) => (
             <View style={focused ? styles.activeTab : null}>
               <Ionicons name={focused ? "map" : "map-outline"} size={24} color={focused ? '#ffffff' : 'gray'} />
