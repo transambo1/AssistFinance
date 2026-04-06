@@ -1,9 +1,8 @@
 package com.financeai.finance_management.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import com.financeai.finance_management.enums.FrequencyType;
+import com.financeai.finance_management.enums.TransactionType;
+import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.SQLRestriction;
 
@@ -22,11 +21,14 @@ public class SalaryConfig extends BaseEntity {
     @Column(name = "id", nullable = false)
     private String id;
 
-    @Column(name = "user_id", nullable = false)
-    private String userId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
-    @Column(name = "category_id")
-    private String categoryId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "catetgory_id", nullable = false)
+    private Category category;
 
     @Builder.Default
     @Column(name = "amount", nullable = false, precision = 19, scale = 4)
@@ -37,4 +39,15 @@ public class SalaryConfig extends BaseEntity {
 
     @Column(name = "last_processed")
     private Long lastProcessed;
+
+    @Column(name = "description")
+    private String description; // Nội dung note cho Transaction
+
+    @Column(name = "frequency")
+    @Enumerated(EnumType.STRING)
+    private FrequencyType frequency; // WEEKLY, MONTHLY
+
+    @Column(name = "type")
+    @Enumerated(EnumType.STRING)
+    private TransactionType type;
 }
