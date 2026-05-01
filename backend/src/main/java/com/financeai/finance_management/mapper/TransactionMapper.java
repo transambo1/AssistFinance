@@ -15,7 +15,7 @@ public interface TransactionMapper {
     @Mapping(target = "category",  ignore = true)
     void partialUpdate(@MappingTarget Transaction transaction, UpsertTransactionRequest request);
 
-    @Mapping(target = "transactionDate", source = "createdAt")
+    @Mapping(target = "transactionDate", source = "transactionDate")
     @Mapping(target = "userId", source = "user.id")
     @Mapping(target = "categoryId", source = "category.id")
     @Mapping(target = "categoryIcon", source = "category.icon")

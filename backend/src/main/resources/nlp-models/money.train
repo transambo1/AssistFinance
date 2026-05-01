@@ -1,0 +1,40 @@
+Tong cong <START:money> 1.234.567 <END> VND
+Thanh toan <START:money> 2.000.000 <END>
+Tien mat <START:money> 2.000.000 <END>
+So tien phai tra <START:money> 765.433 <END>
+TOTAL <START:money> 1.234.567 <END>
+Tong cong <START:money> 1,234,567 <END> VND
+Thanh toan <START:money> 1,500,000 <END>
+Tien mat <START:money> 2,000,000 <END>
+So tien phai tra <START:money> 265,433 <END>
+TOTAL <START:money> 1,234,567 <END>
+Tong cong <START:money> 2.450.000 <END> đ
+Thanh toan <START:money> 3.000.000 <END>
+Tien mat <START:money> 3.000.000 <END>
+So tien phai tra <START:money> 550.000 <END>
+TOTAL <START:money> 2.450.000 <END>
+Tong cong <START:money> 2,450,000 <END> ₫
+Thanh toan <START:money> 3,000,000 <END>
+Tien mat <START:money> 3,000,000 <END>
+So tien phai tra <START:money> 550,000 <END>
+TOTAL <START:money> 2,450,000 <END>
+Tong cong <START:money> 980.500 <END> VND
+Thanh toan <START:money> 1.000.000 <END>
+Tien mat <START:money> 1.000.000 <END>
+So tien phai tra <START:money> 19.500 <END>
+TOTAL <START:money> 980.500 <END>
+Tong cong <START:money> 980,500 <END> ₫
+Thanh toan <START:money> 1,000,000 <END>
+Tien mat <START:money> 1,000,000 <END>
+So tien phai tra <START:money> 19,500 <END>
+TOTAL <START:money> 980,500 <END>
+Tong cong <START:money> 10.234.567 <END> đ
+Thanh toan <START:money> 12.000.000 <END>
+Tien mat <START:money> 15.000.000 <END>
+So tien phai tra <START:money> 1.765.433 <END>
+TOTAL <START:money> 10.234.567 <END>
+Tong cong <START:money> 10,234,567 <END> VND
+Thanh toan <START:money> 12,000,000 <END>
+Tien mat <START:money> 15,000,000 <END>
+So tien phai tra <START:money> 1,765,433 <END>
+TOTAL <START:money> 10,234,567 <END>
