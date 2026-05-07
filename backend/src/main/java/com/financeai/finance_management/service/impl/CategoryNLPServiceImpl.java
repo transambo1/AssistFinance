@@ -69,7 +69,6 @@ public class CategoryNLPServiceImpl implements ICategoryNLPService {
     @Override
     public void forceRetrain() {
         trainMoneyModel();
-
-        log.info("🔄 Toàn bộ AI đã được huấn luyện lại");
+        log.info(" Toàn bộ AI đã được huấn luyện lại");
     }
 }

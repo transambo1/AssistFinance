@@ -81,4 +81,12 @@ public interface TransactionRepository extends JpaRepository<Transaction, String
             @Param("userId") String userId,
             @Param("type") TransactionType type
     );
+    @Query("""
+        SELECT t
+        FROM Transaction t
+        WHERE t.user.id = :userId
+          AND t.deletedAt IS NULL
+    """)
+    List<Transaction> findByUserId(@Param("userId") String userId);
+
 }

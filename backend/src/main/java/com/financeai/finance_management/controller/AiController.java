@@ -12,7 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-
+import com.financeai.finance_management.dto.response.SpendingTrendResponse;
 @RestController
 @RequestMapping("/api/v1/ai")
 @RequiredArgsConstructor
@@ -33,5 +33,10 @@ public class AiController {
     @PostMapping("/chat")
     public BaseResponse<AiChatResponse> chat(@RequestBody AiChatRequest request) {
         return aiService.chat(request);
+    }
+
+    @GetMapping("/trend")
+    public BaseResponse<SpendingTrendResponse> analyzeTrend() {
+        return aiService.analyzeSpendingTrend();
     }
 }
