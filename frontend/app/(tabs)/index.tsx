@@ -1,16 +1,16 @@
 import React, { useState, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Image, StyleSheet,
-  ActivityIndicator, Modal, Alert
+  ActivityIndicator, Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { USER_DATA } from '../../src/mock/data';
-import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/context/ThemeContext';
 import { userService } from '../../src/api/userService';
 import { useQuery } from '@tanstack/react-query';
-import { User, Transaction } from '../../src/types/index';
+import { User} from '../../src/types/index';
 import { formatMoney } from '../../src/utils/formatters';
 import { aiService } from '../../src/api/aiService';
 import { transactionService } from '@/src/api/transactionService';
@@ -53,7 +53,7 @@ export default function DashboardScreen() {
 
   // --- 1. GIỚI HẠN HIỂN THỊ TỔNG SỐ DƯ (MAX 999 TỶ) ---
   const formatCappedBalance = (balance: number) => {
-    const MAX_LIMIT = 999000000000;
+    const MAX_LIMIT = 9990000000;
     const finalBalance = balance > MAX_LIMIT ? MAX_LIMIT : balance;
     return formatMoney(finalBalance);
   };

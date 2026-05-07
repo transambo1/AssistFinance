@@ -26,5 +26,9 @@ export const transactionService = {
         apiClient.put<any>(`/v1/transactions/${id}`, transactionData),
 
     delete: (id: string) =>
-        apiClient.delete<any>(`/v1/transactions/${id}`)
+        apiClient.delete<any>(`/v1/transactions/${id}`),
+
+    upsertSalaryConfig: (configData: any) =>
+        apiClient.post<any>("/v1/transactions/auto-configs", configData),
+
 };

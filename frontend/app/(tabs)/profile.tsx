@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, KeyboardAvoidingView, StyleSheet, SafeAreaView, Image, Switch, Modal, TextInput, ActivityIndicator, Alert, Keyboard, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, KeyboardAvoidingView, StyleSheet, SafeAreaView, Image, Switch, Modal, TextInput, ActivityIndicator, Alert, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/context/ThemeContext';
 import { userService } from '../../src/api/userService';
 import { User } from '@/src/types';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ProfileScreen() {
     const { isDark, toggleTheme } = useTheme();
@@ -20,11 +21,17 @@ export default function ProfileScreen() {
         displayName: ''
     });
 
-    const handleLogout = () => {
-        alert('Đăng xuất thành công!');
-        router.replace('/(auth)/login');
-    }
-
+   const handleLogout = async () => {
+    // 1. Xóa token lưu dưới local
+    await AsyncStorage.removeItem('userToken'); 
+    
+    // 2. Clear cache của React Query để xóa dữ liệu cũ
+    queryClient.clear(); 
+    
+    // 3. Chuyển trang
+    alert('Đăng xuất thành công!');
+    router.replace('/(auth)/login');
+}
     const { data: userData, isLoading } = useQuery<User>({
         queryKey: ['userProfile'],
         queryFn: async () => {

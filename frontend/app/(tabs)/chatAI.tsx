@@ -1,12 +1,15 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
     View, Text, ScrollView, Modal, TouchableOpacity, StyleSheet,
     SafeAreaView, TextInput, KeyboardAvoidingView, Platform,
-    ActivityIndicator, Alert
+    ActivityIndicator, Alert, Image
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { aiService } from '../../src/api/aiService';
-import { transactionService } from '../../src/api/transactionService'; // IMPORT THÊM CÁI NÀY
+import { transactionService } from '../../src/api/transactionService'; 
+import { categoryService } from '../../src/api/categoryService'; // KHÔI PHỤC: Import Category API
+import { useQuery } from '@tanstack/react-query'; // KHÔI PHỤC: Import useQuery
 import { Message } from '../../src/types';
 
 export default function AIChatScreen() {
@@ -14,11 +17,23 @@ export default function AIChatScreen() {
     const [isLoading, setIsLoading] = useState(false);
     const scrollViewRef = useRef<ScrollView>(null);
 
+    // --- KHÔI PHỤC: LẤY DANH SÁCH DANH MỤC TỪ BACKEND ---
+    const { data: categoryData } = useQuery<any>({
+        queryKey: ['categories'],
+        queryFn: () => categoryService.getAll(),
+    });
+    const categories = Array.isArray(categoryData?.data) ? categoryData.data : (categoryData?.data?.data || []);
+
     // --- STATE CHO MODAL CHỈNH SỬA ---
     const [editingTransaction, setEditingTransaction] = useState<any>(null);
     const [editAmount, setEditAmount] = useState('');
     const [editNote, setEditNote] = useState('');
     const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+    // KHÔI PHỤC: Các state phục vụ chọn Loại và Danh mục
+    const [editType, setEditType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE');
+    const [editCategoryId, setEditCategoryId] = useState<string>('');
+    const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
     // Khởi tạo State chứa lịch sử chat
     const [messages, setMessages] = useState<Message[]>([
@@ -28,7 +43,95 @@ export default function AIChatScreen() {
             text: 'Chào bạn! Hôm nay bạn có chi tiêu khoản nào không? Cứ nói với tôi bằng ngôn ngữ tự nhiên nhé.',
         }
     ]);
+    // --- HÀM XỬ LÝ CHỌN ẢNH VÀ GỌI OCR ---
+    const handlePickImage = async () => {
+    const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!granted) {
+        alert("Bạn cần cấp quyền truy cập ảnh.");
+        return;
+    }
 
+    const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 1,
+    });
+
+    if (!result.canceled) {
+        const selectedUri = result.assets[0].uri;
+        const tempId = Date.now().toString();
+
+        // 1. Hiện ảnh user gửi lên luôn cho đẹp
+        setMessages(prev => [...prev, { id: tempId, sender: 'user', imageUri: selectedUri }]);
+        setIsLoading(true);
+
+        try {
+    const response = await aiService.uploadOcrImage(selectedUri);
+
+let finalData: any = response;
+
+// Nếu response là string JSON thì parse
+if (typeof finalData === 'string') {
+    finalData = JSON.parse(finalData);
+}
+
+// Nếu response.data tồn tại
+if (finalData?.data) {
+    finalData = finalData.data;
+}
+
+// Nếu response.data.data tồn tại
+if (finalData?.data) {
+    finalData = finalData.data;
+}
+
+// parse string lần nữa nếu nested string
+if (typeof finalData === 'string') {
+    finalData = JSON.parse(finalData);
+}
+
+console.log("FINAL OCR DATA:", finalData);
+console.log("AMOUNT:", finalData.amount);
+
+   
+    // Kiểm tra xem đã tìm thấy 'amount' chưa
+    if (!finalData || finalData.amount === undefined) {
+        throw new Error("Không tìm thấy số tiền trong dữ liệu");
+    }
+
+    // --- LOGIC HIỂN THỊ (Giữ nguyên phần đẹp đẽ cũ) ---
+    const getEmoji = (icon: string) => {
+        const map: any = { 'restaurant': '🍔', 'car': '🚗', 'salary': '💰', 'gift': '🎁' };
+        return map[icon] || '🧾';
+    };
+
+    const emoji = getEmoji(finalData.categoryIcon);
+    const typeText = finalData.type === 'INCOME' ? 'Thu nhập 💰' : 'Chi phí 💸';
+    const formattedAmount = Number(finalData.amount).toLocaleString('vi-VN');
+
+    const aiReport = `${emoji} Mình đã bóc tách xong hóa đơn:
+• Loại: ${typeText}
+• Ngày: ${finalData.transactionDate || 'Hôm nay'}
+• Số tiền: ₫${formattedAmount}
+• Danh mục: ${finalData.categoryName}`;
+
+    setMessages(prev => [...prev, {
+        id: `ai_ocr_${Date.now()}`,
+        sender: 'ai',
+        text: aiReport,
+        actionType: 'PARSE_TRANSACTION',
+        transactionData: finalData
+    }]);
+
+} catch (error: any) {
+    console.error("LỖI THỰC TẾ:", error);
+    setMessages(prev => [...prev, { 
+        id: `err_${Date.now()}`, 
+        sender: 'ai', 
+        text: `Hic, lỗi xử lý: ${error.message}. Thành check lại cấu trúc data nhé!` 
+    }]);
+}
+    }
+}; // Kết thúc hàm handlePickImage
     // Hàm xử lý gửi tin nhắn
     const handleSend = async () => {
         if (!inputText.trim()) return;
@@ -73,22 +176,31 @@ export default function AIChatScreen() {
         setEditingTransaction(txData);
         setEditAmount(txData.amount ? txData.amount.toString() : '0');
         setEditNote(txData.note || '');
+        // KHÔI PHỤC: Điền lại Loại và Danh mục cũ
+        setEditType(txData.type === 'INCOME' ? 'INCOME' : 'EXPENSE');
+        setEditCategoryId(txData.categoryId || '');
+        setShowCategoryPicker(false);
     };
 
     // --- HÀM LƯU GIAO DỊCH SAU KHI SỬA ---
     const handleSaveEdit = async () => {
         if (!editingTransaction?.id) return;
+        if (!editCategoryId) {
+            Alert.alert("Lỗi", "Vui lòng chọn danh mục.");
+            return;
+        }
 
         setIsSavingEdit(true);
         try {
-            const updatedAmount = Number(editAmount.replace(/[^0-9]/g, '')); // Xóa ký tự lạ, chỉ giữ số
+            const updatedAmount = Number(editAmount.replace(/[^0-9]/g, ''));
+            const selectedCategory = categories.find((c: any) => c.id === editCategoryId);
 
             // 1. Gọi API Update lên Server
             await transactionService.update(editingTransaction.id, {
                 amount: updatedAmount,
                 note: editNote,
-                categoryId: editingTransaction.categoryId, // Giữ nguyên danh mục cũ
-                type: editingTransaction.type            // Giữ nguyên loại cũ
+                categoryId: editCategoryId, // Lấy ID mới nếu user đổi
+                type: editType             // Lấy Type mới nếu user đổi
             });
 
             // 2. Cập nhật lại UI trong màn hình chat
@@ -99,7 +211,10 @@ export default function AIChatScreen() {
                         transactionData: {
                             ...msg.transactionData,
                             amount: updatedAmount,
-                            note: editNote
+                            note: editNote,
+                            type: editType,
+                            categoryId: editCategoryId,
+                            categoryName: selectedCategory ? selectedCategory.name : msg.transactionData.categoryName
                         }
                     };
                 }
@@ -115,16 +230,31 @@ export default function AIChatScreen() {
         }
     };
 
+    // KHÔI PHỤC: Lọc danh mục theo Loại (Thu/Chi) để hiện vào Dropdown
+    const availableCategories = categories.filter((c: any) => c.type === editType);
+    const selectedCategoryName = availableCategories.find((c: any) => c.id === editCategoryId)?.name || 'Chọn danh mục';
+
     const renderMessageItem = (msg: Message, index: number) => {
-        if (msg.sender === 'user') {
-            return (
-                <View key={msg.id} style={styles.messageRowUser}>
+    if (msg.sender === 'user') {
+        return (
+            <View key={msg.id} style={styles.messageRowUser}>
+                {/* --- SỬA LOGIC Ở ĐÂY --- */}
+                {msg.imageUri ? (
+                    // Nếu có imageUri, hiện hình ảnh
+                    <Image 
+                        source={{ uri: msg.imageUri }} 
+                        style={styles.sentImageUser} 
+                        resizeMode="cover"
+                    />
+                ) : (
+                    // Nếu không có, hiện Text bubble cũ
                     <View style={styles.bubbleUser}>
                         <Text style={styles.textUser}>{msg.text}</Text>
                     </View>
-                </View>
-            );
-        }
+                )}
+            </View>
+        );
+    }
 
         return (
             <React.Fragment key={msg.id}>
@@ -152,7 +282,7 @@ export default function AIChatScreen() {
                                 </View>
 
                                 <View style={styles.previewCardBody}>
-                                    <View style={styles.previewIconWrapper}>
+                                    <View style={[styles.previewIconWrapper, { backgroundColor: msg.transactionData.type === 'INCOME' ? '#e0f7fa' : '#ffebee' }]}>
                                         <Text style={styles.previewEmoji}>
                                             {msg.transactionData.type === 'INCOME' ? '💰' : '🍔'}
                                         </Text>
@@ -182,13 +312,13 @@ export default function AIChatScreen() {
                 {index === 0 && (
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestionContainer}>
                         <TouchableOpacity style={styles.suggestionChip} onPress={() => setInputText("Sáng nay ăn phở 45k")}>
-                            <Text style={styles.suggestionText}>"Sáng nay ăn phở 45k"</Text>
+                            <Text style={styles.suggestionText}>&quot;Sáng nay ăn phở 45k&quot;</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.suggestionChip} onPress={() => setInputText("Đổ xăng hết 60k nha")}>
-                            <Text style={styles.suggestionText}>"Đổ xăng hết 60k nha"</Text>
+                            <Text style={styles.suggestionText}>&quot;Đổ xăng hết 60k nha&quot;</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.suggestionChip} onPress={() => setInputText("Vừa nhận lương 20 củ")}>
-                            <Text style={styles.suggestionText}>"Vừa nhận lương 20 củ"</Text>
+                            <Text style={styles.suggestionText}>&quot;Vừa nhận lương 20 củ&quot;</Text>
                         </TouchableOpacity>
                     </ScrollView>
                 )}
@@ -232,7 +362,7 @@ export default function AIChatScreen() {
                 </ScrollView>
 
                 <View style={styles.inputArea}>
-                    <TouchableOpacity style={styles.attachBtn}>
+                    <TouchableOpacity style={styles.attachBtn} onPress={handlePickImage}>
                         <MaterialIcons name="image" size={24} color="#767683" />
                     </TouchableOpacity>
 
@@ -269,8 +399,55 @@ export default function AIChatScreen() {
                             </TouchableOpacity>
                         </View>
 
+                        {/* --- KHÔI PHỤC: NÚT CHỌN THU NHẬP / CHI PHÍ --- */}
+                        <Text style={styles.modalLabel}>Loại giao dịch</Text>
+                        <View style={styles.typeSelectorRow}>
+                            <TouchableOpacity 
+                                style={[styles.typeBtn, editType === 'EXPENSE' && styles.typeBtnActiveExpense]}
+                                onPress={() => { setEditType('EXPENSE'); setEditCategoryId(''); setShowCategoryPicker(false); }}
+                            >
+                                <Text style={[styles.typeBtnText, editType === 'EXPENSE' && {color: '#fff'}]}>Chi phí</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                                style={[styles.typeBtn, editType === 'INCOME' && styles.typeBtnActiveIncome]}
+                                onPress={() => { setEditType('INCOME'); setEditCategoryId(''); setShowCategoryPicker(false); }}
+                            >
+                                <Text style={[styles.typeBtnText, editType === 'INCOME' && {color: '#fff'}]}>Thu nhập</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* --- KHÔI PHỤC: DROPDOWN CHỌN DANH MỤC --- */}
                         <Text style={styles.modalLabel}>Danh mục</Text>
-                        <TextInput style={[styles.modalInput, { backgroundColor: '#f5f5f5', color: '#999' }]} value={editingTransaction?.categoryName || 'Không xác định'} editable={true} />
+                        <TouchableOpacity 
+                            style={[styles.modalInput, styles.dropdownSelector]} 
+                            onPress={() => setShowCategoryPicker(!showCategoryPicker)}
+                        >
+                            <Text style={{color: editCategoryId ? '#1b1b21' : '#999', fontSize: 15}}>{selectedCategoryName}</Text>
+                            <MaterialIcons name={showCategoryPicker ? "keyboard-arrow-up" : "keyboard-arrow-down"} size={24} color="#767683" />
+                        </TouchableOpacity>
+
+                        {showCategoryPicker && (
+                            <View style={styles.dropdownList}>
+                                <ScrollView nestedScrollEnabled style={{maxHeight: 150}}>
+                                    {availableCategories.map((cat: any) => (
+                                        <TouchableOpacity 
+                                            key={cat.id} 
+                                            style={styles.dropdownItem}
+                                            onPress={() => {
+                                                setEditCategoryId(cat.id);
+                                                setShowCategoryPicker(false);
+                                            }}
+                                        >
+                                            <MaterialIcons name={(cat.icon as any) || 'category'} size={20} color={cat.color || '#1a237e'} style={{marginRight: 10}}/>
+                                            <Text style={{fontSize: 15, color: '#1b1b21'}}>{cat.name}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                    {availableCategories.length === 0 && (
+                                        <Text style={{padding: 10, textAlign: 'center', color: '#999'}}>Không có danh mục nào.</Text>
+                                    )}
+                                </ScrollView>
+                            </View>
+                        )}
 
                         <Text style={styles.modalLabel}>Số tiền (VND)</Text>
                         <TextInput
@@ -309,6 +486,15 @@ export default function AIChatScreen() {
 
 // BỘ STYLE
 const styles = StyleSheet.create({
+    sentImageUser: {
+        width: 220,             // Chiều rộng ảnh
+        height: 150,            // Chiều cao ảnh
+        borderRadius: 12,       // Bo góc ảnh cho đẹp
+        marginVertical: 5,      // Khoảng cách trên dưới
+        borderWidth: 1,         // (Tùy chọn) Viền ảnh
+        borderColor: '#ddd',    // (Tùy chọn) Màu viền
+        alignSelf: 'flex-end',  // Đẩy ảnh sang bên phải (phía người dùng)
+    },
     container: { flex: 1, backgroundColor: '#FBF8FF' },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: 16, paddingBottom: 16 },
     headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#000666' },
@@ -371,6 +557,18 @@ const styles = StyleSheet.create({
     modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#1b1b21' },
     modalLabel: { fontSize: 13, fontWeight: '600', color: '#454652', marginBottom: 8 },
     modalInput: { borderWidth: 1, borderColor: '#e8e8e8', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, fontSize: 15, marginBottom: 16, color: '#1b1b21' },
+    
+    // --- KHÔI PHỤC: Style cho Nút Chọn Loại & Danh mục ---
+    typeSelectorRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
+    typeBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: '#e8e8e8', alignItems: 'center', backgroundColor: '#f9f9f9' },
+    typeBtnText: { fontSize: 14, fontWeight: '600', color: '#767683' },
+    typeBtnActiveExpense: { backgroundColor: '#ff635f', borderColor: '#ff635f' },
+    typeBtnActiveIncome: { backgroundColor: '#1b6d24', borderColor: '#1b6d24' },
+    
+    dropdownSelector: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 0 },
+    dropdownList: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e8e8e8', borderRadius: 12, marginTop: 4, marginBottom: 16, elevation: 2 },
+    dropdownItem: { flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+    
     modalActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
     cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: '#f0f0f0', alignItems: 'center' },
     cancelBtnText: { fontSize: 15, fontWeight: '600', color: '#454652' },

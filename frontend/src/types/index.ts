@@ -65,13 +65,14 @@ export interface Budget {
     name: string;
     targetAmount: number;
     currentAmount: number;
+    endDate: number | string;
     type: BudgetType;
     categoryId?: string;
     categoryIcon: string;
     categoryColor: string;
     monthYear: string;
     createdAt: number | string;
-    updatedAt: number | string;
+    updatedAt:  string;
 }
 
 export interface Message {

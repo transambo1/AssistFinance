@@ -34,7 +34,7 @@ vnpay:
 #      name: admin
 #      password: 123456
 jwt:
-  signerKey: "5c823fbad6726aa54a234e222bcf044684310146aa90e096e676e1c217e568de"
+  signerKey: "5c823fbad6726aa54a234e222bcf044684310146aa90e096e676e1c217e568de5c823fbad6726aa54a234e222bcf0446"
   valid-duration: 3600 #in second
   refreshable-duration: 7200 #in second
 server:
@@ -47,5 +47,5 @@ ai:
     url: http://127.0.0.1:8001
 gemini:
   api:
-    key: ${GEMINI_API_KEY}
+    key: "AIzaSyCPLVHcpu47AV7QYu-aDjre4CEkhRObOzw"
   model: gemini-2.5-flash

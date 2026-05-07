@@ -1,5 +1,6 @@
-import { apiClient } from "./apiClient";
 
+import { apiClient } from "./apiClient";
+import { Platform } from 'react-native';
 // Lấy Key từ file .env an toàn
 const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY;
 
@@ -71,7 +72,41 @@ export const aiService = {
             console.error("❌ Lỗi khi gọi AI API backend:", error);
             throw error;
         }
+    },
+    uploadOcrImage: async (imageUri: string) => {
+    try {
+        const formData = new FormData();
+
+        if (Platform.OS === 'web') {
+            const imageFetch = await fetch(imageUri);
+            const blob = await imageFetch.blob();
+            formData.append('file', blob, 'receipt.jpg');
+        } else {
+            const uriParts = imageUri.split('.');
+            const fileType = uriParts[uriParts.length - 1];
+
+            // @ts-ignore
+            formData.append('file', {
+                uri: imageUri,
+                name: `photo.${fileType}`,
+                type: `image/${fileType}`,
+            });
+        }
+
+        const response = await apiClient.post('/v1/ocr/upload', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+
+        console.log("✅ OCR SERVICE DATA:", response);
+
+        return response; // KHÔNG .data nữa
+    } catch (error) {
+        console.error("❌ Lỗi khi gọi API OCR:", error);
+        throw error;
     }
+}
 };
 
 
