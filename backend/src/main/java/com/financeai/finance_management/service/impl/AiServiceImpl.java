@@ -5,13 +5,7 @@ import com.financeai.finance_management.dto.request.AiChatRequest;
 import com.financeai.finance_management.dto.request.AiParseRequest;
 import com.financeai.finance_management.dto.request.AiQueryRequest;
 import com.financeai.finance_management.dto.request.UpsertTransactionRequest;
-import com.financeai.finance_management.dto.response.AiChatIntentResult;
-import com.financeai.finance_management.dto.response.AiChatResponse;
-import com.financeai.finance_management.dto.response.AiIntentResult;
-import com.financeai.finance_management.dto.response.AiParseResponse;
-import com.financeai.finance_management.dto.response.AiQueryResponse;
-import com.financeai.finance_management.dto.response.BaseResponse;
-import com.financeai.finance_management.dto.response.TransactionResponse;
+import com.financeai.finance_management.dto.response.*;
 import com.financeai.finance_management.entity.Budget;
 import com.financeai.finance_management.entity.Category;
 import com.financeai.finance_management.entity.Transaction;
@@ -20,6 +14,7 @@ import com.financeai.finance_management.enums.TransactionType;
 import com.financeai.finance_management.repository.BudgetRepository;
 import com.financeai.finance_management.repository.CategoryRepository;
 import com.financeai.finance_management.repository.TransactionRepository;
+import com.financeai.finance_management.service.GeminiAiService;
 import com.financeai.finance_management.service.IAiService;
 import com.financeai.finance_management.service.IBudgetService;
 import com.financeai.finance_management.service.ITransactionService;
@@ -40,11 +35,19 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.*;
 import java.util.regex.Pattern;
+import java.time.Instant;
+import java.time.YearMonth;
+import java.time.ZoneId;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.ArrayList;
+import java.util.stream.Collectors;
+
 
 @Service
 @RequiredArgsConstructor
-public class AiServiceImpl implements IAiService {
-
+    public class AiServiceImpl implements IAiService {
+    private final GeminiAiService geminiAiService;
     private final ITransactionService transactionService;
     private final CategoryRepository categoryRepository;
     private final TransactionRepository transactionRepository;
@@ -76,7 +79,49 @@ public class AiServiceImpl implements IAiService {
             "ăn", "uống", "mua", "đóng", "trả", "đổ xăng", "lương", "thưởng",
             "mẹ cho", "nhặt được", "nhận", "chuyển khoản", "thu", "chi"
     );
+    @Override
+    public BaseResponse<SpendingTrendResponse> analyzeSpendingTrend() {
 
+        String userId = budgetService.getCurrentUserId();
+
+        List<Transaction> transactions =
+                transactionRepository.findByUserId(userId);
+
+        Map<YearMonth, Integer> monthlyExpenses = transactions.stream()
+
+                .filter(transaction ->
+                        transaction.getType() == TransactionType.EXPENSE
+                )
+
+                .collect(Collectors.groupingBy(
+
+                        transaction -> {
+                            Instant instant =
+                                    Instant.ofEpochMilli(
+                                            transaction.getTransactionDate()
+                                    );
+
+                            return YearMonth.from(
+                                    instant.atZone(ZoneId.systemDefault())
+                            );
+                        },
+
+                        TreeMap::new,
+
+                        Collectors.summingInt(
+                                transaction ->
+                                        transaction.getAmount().intValue()
+                        )
+                ));
+
+        List<Integer> expenses =
+                new ArrayList<>(monthlyExpenses.values());
+
+        SpendingTrendResponse response =
+                geminiAiService.predictTrend(expenses);
+
+        return BaseResponse.ok(response);
+    }
     @Override
     public BaseResponse<List<TransactionResponse>> parseAndSaveTransaction(AiParseRequest request) {
         validateParseRequest(request);

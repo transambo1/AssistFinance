@@ -12,7 +12,7 @@ import java.util.regex.Pattern;
 
 @Slf4j
 public class OCRParser {
-    // --- 1. KHAI BÁO CẤU HÌNH ---
+
     private static TokenNameFinderModel model;
     private static final String MODEL_PATH = "src/main/resources/nlp-models/money-model.bin";
 
@@ -21,11 +21,9 @@ public class OCRParser {
     public static void reloadModel() {
         try (InputStream is = new FileInputStream(MODEL_PATH)) {
             model = new TokenNameFinderModel(is);
-            log.info("🔄 Money model reloaded");
+            log.info(" Money model reloaded");
         } catch (Exception e) { log.error("❌ Reload model fail", e); }
     }
-
-    // --- 2. LUỒNG XỬ LÝ CHÍNH ---
 
     /**
      * Hàm chính để trích xuất số tiền từ văn bản OCR
@@ -39,14 +37,14 @@ public class OCRParser {
             NameFinderME nameFinder = new NameFinderME(model);
             Span[] spans = nameFinder.find(tokens);
 
-            // Bước 2: Duyệt ngược từ dưới lên (Ưu tiên phần tổng tiền ở đáy hóa đơn)
+            // Duyệt ngược từ dưới lên
             for (int i = spans.length - 1; i >= 0; i--) {
                 String detected = buildString(tokens, spans[i]);
 
-                // Cửa ải 1: Loại bỏ các số không phải tiền (SĐT, Pin, Mã đơn)
+                //  bỏ các số không phải tiền (SĐT, Pin, Mã đơn)
                 if (isInvalidMoneyFormat(detected)) continue;
 
-                // Cửa ải 2: Xác nhận con số này nằm trong ngữ cảnh tài chính
+                //  ngữ cảnh tài chính
                 if (hasFinancialContext(tokens, spans[i].getStart())) {
                     return cleanToLong(detected);
                 }
@@ -55,19 +53,16 @@ public class OCRParser {
             log.error("❌ AI Error: {}", e.getMessage());
         }
 
-        // Bước 3: Dự phòng (Fallback) - Nếu AI không tìm thấy, dùng Regex quét nốt
+        // (Fallback)
         return extractByRegex(text);
     }
 
-    /**
-     * Trích xuất ngày tháng từ văn bản
-     */
+
     public static String extractDate(String text) {
         Matcher m = Pattern.compile("(\\d{1,2}[/|-]\\d{1,2}[/|-]\\d{4})").matcher(text);
         return m.find() ? m.group().replace("/", "-") : null;
     }
 
-    // --- 3. CÁC HÀM HỖ TRỢ (HELPER METHODS) ---
 
     private static String buildString(String[] tokens, Span span) {
         StringBuilder sb = new StringBuilder();
@@ -86,9 +81,9 @@ public class OCRParser {
 
     private static boolean isInvalidMoneyFormat(String detected) {
         String digits = detected.replaceAll("[^0-9]", "");
-        // Chặn SĐT: Dài >= 10 số nhưng không có định dạng tiền (. hoặc ,)
+        // Chặn SĐT: Dài >= 10
         if (digits.length() >= 10 && !detected.contains(".") && !detected.contains(",")) return true;
-        // Chặn số quá nhỏ: Pin (17%), Số lượng (SL: 1)
+
         if (digits.length() < 3 && !detected.toLowerCase().contains("k")) return true;
         return false;
     }
