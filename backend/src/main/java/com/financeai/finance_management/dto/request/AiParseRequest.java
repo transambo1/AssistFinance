@@ -6,5 +6,5 @@ import lombok.Setter;
 @Getter
 @Setter
 public class AiParseRequest {
-    private String text;
+  private String text;
 }

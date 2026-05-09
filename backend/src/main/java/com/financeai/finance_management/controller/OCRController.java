@@ -14,11 +14,10 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/v1/ocr")
 public class OCRController {
 
-    @Autowired
-    private IOCRService ocrService;
+  @Autowired private IOCRService ocrService;
 
-    @PostMapping("/upload")
-    public ResponseEntity<TransactionResponse> upload(@RequestParam("file") MultipartFile file) {
-        return ResponseEntity.ok(ocrService.processReceipt(file));
-    }
+  @PostMapping("/upload")
+  public ResponseEntity<TransactionResponse> upload(@RequestParam("file") MultipartFile file) {
+    return ResponseEntity.ok(ocrService.processReceipt(file));
+  }
 }

@@ -2,13 +2,12 @@ package com.financeai.finance_management.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
+import java.time.Instant;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
-
-import java.time.Instant;
 
 @Getter
 @Setter
@@ -32,9 +31,9 @@ public abstract class BaseEntity {
   @Column(name = "deleted_at")
   protected Long deletedAt;
 
-//  @Version
-//  @Column(name = "version", nullable = false)
-//  protected int version;
+  //  @Version
+  //  @Column(name = "version", nullable = false)
+  //  protected int version;
 
   @PrePersist
   protected void prePersist() {

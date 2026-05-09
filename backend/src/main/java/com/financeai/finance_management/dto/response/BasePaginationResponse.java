@@ -1,11 +1,10 @@
 package com.financeai.finance_management.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import java.util.List;
 import lombok.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
-
-import java.util.List;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Getter

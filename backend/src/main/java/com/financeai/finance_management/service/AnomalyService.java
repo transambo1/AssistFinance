@@ -5,6 +5,5 @@ import com.financeai.finance_management.dto.response.AnomalyResponse;
 
 public interface AnomalyService {
 
-    AnomalyResponse detect(AnomalyRequest request);
-
+  AnomalyResponse detect(AnomalyRequest request);
 }

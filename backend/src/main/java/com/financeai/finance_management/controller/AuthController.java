@@ -1,7 +1,6 @@
 package com.financeai.finance_management.controller;
 
 import com.financeai.finance_management.dto.request.AuthenticationRequest;
-
 import com.financeai.finance_management.dto.request.RegisterRequest;
 import com.financeai.finance_management.dto.response.AuthenticationResponse;
 import com.financeai.finance_management.dto.response.BaseResponse;
@@ -25,21 +24,20 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AuthController {
 
-    IAuthenticationService authenticationService;
+  IAuthenticationService authenticationService;
 
-    @Operation(summary = "Login")
-    @PostMapping("/login")
-    public ResponseEntity<BaseResponse<AuthenticationResponse>> login(
-            @RequestBody @Valid AuthenticationRequest request) {
+  @Operation(summary = "Login")
+  @PostMapping("/login")
+  public ResponseEntity<BaseResponse<AuthenticationResponse>> login(
+      @RequestBody @Valid AuthenticationRequest request) {
 
-        return ResponseEntity.ok(authenticationService.authenticate(request));
-    }
+    return ResponseEntity.ok(authenticationService.authenticate(request));
+  }
 
-    @PostMapping("/register")
-    public ResponseEntity<BaseResponse<AuthenticationResponse>> register(
-            @RequestBody @Valid RegisterRequest request) {
+  @PostMapping("/register")
+  public ResponseEntity<BaseResponse<AuthenticationResponse>> register(
+      @RequestBody @Valid RegisterRequest request) {
 
-        return ResponseEntity.ok(authenticationService.register(request));
-    }
-
+    return ResponseEntity.ok(authenticationService.register(request));
+  }
 }

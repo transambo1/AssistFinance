@@ -9,16 +9,16 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class NLPAdminController {
 
-    private final ICategoryNLPService nlpService;
+  private final ICategoryNLPService nlpService;
 
-    @PostMapping("/retrain")
-    public String retrain() {
-        long start = System.currentTimeMillis();
+  @PostMapping("/retrain")
+  public String retrain() {
+    long start = System.currentTimeMillis();
 
-        nlpService.forceRetrain();
+    nlpService.forceRetrain();
 
-        long time = System.currentTimeMillis() - start;
+    long time = System.currentTimeMillis() - start;
 
-        return "✅ Model đã retrain xong trong " + time + " ms";
-    }
+    return "✅ Model đã retrain xong trong " + time + " ms";
+  }
 }

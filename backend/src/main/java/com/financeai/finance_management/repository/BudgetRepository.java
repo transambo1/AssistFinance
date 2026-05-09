@@ -1,20 +1,22 @@
 package com.financeai.finance_management.repository;
 
 import com.financeai.finance_management.entity.Budget;
+import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.util.List;
-import java.util.Optional;
+public interface BudgetRepository
+    extends JpaRepository<Budget, String>, JpaSpecificationExecutor<Budget> {
 
-public interface BudgetRepository extends JpaRepository<Budget, String>, JpaSpecificationExecutor<Budget> {
+  boolean existsByUserIdAndNameAndDeletedAtIsNull(String userId, String name);
 
-    boolean existsByUserIdAndNameAndDeletedAtIsNull(String userId, String name);
+  Optional<Budget> findByIdAndDeletedAtIsNull(String id);
 
-    Optional<Budget> findByIdAndDeletedAtIsNull(String id);
-    @Query("""
+  @Query(
+      """
         SELECT b
         FROM Budget b
         WHERE b.user.id = :userId
@@ -23,9 +25,8 @@ public interface BudgetRepository extends JpaRepository<Budget, String>, JpaSpec
           AND b.deletedAt IS NULL
         ORDER BY b.createdAt DESC
     """)
-    List<Budget> findBudgets(
-            @Param("userId") String userId,
-            @Param("categoryId") String categoryId,
-            @Param("time") Long time
-    );
+  List<Budget> findBudgets(
+      @Param("userId") String userId,
+      @Param("categoryId") String categoryId,
+      @Param("time") Long time);
 }

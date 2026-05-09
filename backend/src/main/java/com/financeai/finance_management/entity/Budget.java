@@ -3,11 +3,9 @@ package com.financeai.finance_management.entity;
 import com.financeai.finance_management.enums.BudgetStatus;
 import com.financeai.finance_management.enums.BudgetType;
 import jakarta.persistence.*;
-import lombok.*;
-import lombok.experimental.SuperBuilder;
-import org.hibernate.annotations.SQLRestriction;
-
 import java.math.BigDecimal;
+import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 
 @Entity
 @Table(name = "budgets")
@@ -19,45 +17,45 @@ import java.math.BigDecimal;
 @SQLRestriction("deleted_at IS NULL")
 public class Budget extends BaseEntity {
 
-    @Id
-    @Column(name = "id", nullable = false)
-    private String id;
+  @Id
+  @Column(name = "id", nullable = false)
+  private String id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "user_id", nullable = false)
+  private User user;
 
-    @Column(name = "category_id")
-    private String categoryId;
+  @Column(name = "category_id")
+  private String categoryId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id", insertable = false, updatable = false)
-    private Category category;
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "category_id", insertable = false, updatable = false)
+  private Category category;
 
-    @Column(name = "name", nullable = false)
-    private String name;
+  @Column(name = "name", nullable = false)
+  private String name;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false, length = 20)
-    @Builder.Default
-    private BudgetType type = BudgetType.LIMIT;
+  @Enumerated(EnumType.STRING)
+  @Column(name = "type", nullable = false, length = 20)
+  @Builder.Default
+  private BudgetType type = BudgetType.LIMIT;
 
-    @Builder.Default
-    @Column(name = "target_amount", nullable = false, precision = 19, scale = 4)
-    private BigDecimal targetAmount = BigDecimal.ZERO;
+  @Builder.Default
+  @Column(name = "target_amount", nullable = false, precision = 19, scale = 4)
+  private BigDecimal targetAmount = BigDecimal.ZERO;
 
-    @Builder.Default
-    @Column(name = "current_amount", precision = 19, scale = 4)
-    private BigDecimal currentAmount = BigDecimal.ZERO;
+  @Builder.Default
+  @Column(name = "current_amount", precision = 19, scale = 4)
+  private BigDecimal currentAmount = BigDecimal.ZERO;
 
-    @Column(name = "start_date")
-    private Long startDate;
+  @Column(name = "start_date")
+  private Long startDate;
 
-    @Column(name = "end_date")
-    private Long endDate;
+  @Column(name = "end_date")
+  private Long endDate;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 50)
-    @Builder.Default
-    private BudgetStatus status = BudgetStatus.ACTIVE;
+  @Enumerated(EnumType.STRING)
+  @Column(name = "status", nullable = false, length = 50)
+  @Builder.Default
+  private BudgetStatus status = BudgetStatus.ACTIVE;
 }

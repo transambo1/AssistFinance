@@ -5,9 +5,9 @@ import lombok.Data;
 
 @Data
 public class CategoryUpdateRequest {
-    private String name;
-    private CategoryType type;
-    private String icon;
-    private String color;
-    private Boolean isArchived;
+  private String name;
+  private CategoryType type;
+  private String icon;
+  private String color;
+  private Boolean isArchived;
 }
