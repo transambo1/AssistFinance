@@ -30,6 +30,12 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.UUID;
+import com.financeai.finance_management.dto.request.AnomalyRequest;
+import com.financeai.finance_management.dto.response.AnomalyResponse;
+import com.financeai.finance_management.service.AnomalyService;
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -42,6 +48,7 @@ public class TransactionServiceImpl implements ITransactionService {
   private final IBudgetService budgetService;
   private final TransactionMapper transactionMapper;
   private final ApplicationEventPublisher eventPublisher;
+    private final AnomalyService anomalyService;
 
   @Override
   @Transactional
@@ -58,30 +65,56 @@ public class TransactionServiceImpl implements ITransactionService {
             .findById(request.getCategoryId())
             .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
 
-    Transaction transaction =
-        Transaction.builder()
-            .id(UUID.randomUUID().toString())
-            .user(user)
-            .category(category)
-            .amount(request.getAmount())
-            .type(request.getType())
-            .note(request.getNote())
-            .imageUrl(request.getImageUrl())
-            .isAuto(request.getIsAuto())
-            .transactionDate(
-                request.getTransactionDate() != null
-                    ? request.getTransactionDate()
-                    : Instant.now().toEpochMilli())
-            .status(TransactionStatus.SUCCESS)
-            .build();
-    transactionRepository.save(transaction);
+        AnomalyResponse anomalyResponse = null;
 
-    updateUserBalance(user, request.getAmount(), request.getType(), false);
-    eventPublisher.publishEvent(
-        new TransactionChangedEvent(
-            user.getId(), request.getType(), transaction.getTransactionDate()));
-    return BaseResponse.ok(transactionMapper.toResponse(transaction));
-  }
+        if (Boolean.TRUE.equals(request.getIsAuto())) {
+
+            anomalyResponse =
+                    detectAnomaly(request, user.getId());
+
+        }
+        Transaction transaction = Transaction.builder()
+                .id(UUID.randomUUID().toString())
+                .user(user)
+                .category(category)
+                .amount(request.getAmount())
+                .type(request.getType())
+                .note(request.getNote())
+                .imageUrl(request.getImageUrl())
+                .isAuto(request.getIsAuto())
+                .transactionDate(request.getTransactionDate() != null
+                        ? request.getTransactionDate()
+                        : Instant.now().toEpochMilli())
+                .status(TransactionStatus.SUCCESS)
+                .isAnomaly(
+                        anomalyResponse != null &&
+                                anomalyResponse.isAnomaly()
+                )
+                .anomalyMessage(
+                        anomalyResponse != null &&
+                                anomalyResponse.isAnomaly()
+                                ? "Chi tiêu bất thường"
+                                : null
+                )
+                .build();
+        transactionRepository.save(transaction);
+
+        updateUserBalance(user, request.getAmount(), request.getType(), false);
+
+        TransactionResponse response =
+                transactionMapper.toResponse(transaction);
+
+        if (anomalyResponse != null) {
+            response.setZScore(
+                    anomalyResponse.getZScore()
+            );
+        }
+
+      eventPublisher.publishEvent(
+              new TransactionChangedEvent(
+                      user.getId(), request.getType(), transaction.getTransactionDate()));
+        return BaseResponse.ok(response);
+    }
 
   @Override
   @Transactional
@@ -178,7 +211,54 @@ public class TransactionServiceImpl implements ITransactionService {
 
     BigDecimal newBalance = user.getCurrentBalance().add(adjustment);
 
-    user.setCurrentBalance(newBalance);
-    userRepository.save(user);
-  }
+        user.setCurrentBalance(newBalance);
+        userRepository.save(user);
+    }
+    private AnomalyResponse detectAnomaly(UpsertTransactionRequest request, String userId) {
+
+        if(request.getType() != TransactionType.EXPENSE) {
+            return null;
+        }
+
+        var oldAmounts = transactionRepository
+                .findAmountsByUserAndCategory(
+                        userId,
+                        request.getCategoryId()
+                );
+        log.info("OLD AMOUNTS = {}", oldAmounts);
+        if(oldAmounts.size() < 5) {
+            log.warn("NOT ENOUGH DATA: {}", oldAmounts.size());
+            return null;
+        }
+
+        AnomalyRequest anomalyRequest = new AnomalyRequest();
+
+        anomalyRequest.setAmounts(oldAmounts);
+
+        anomalyRequest.setNewAmount(
+                request.getAmount().doubleValue()
+        );
+        log.info("NEW AMOUNT = {}", request.getAmount());
+
+        AnomalyResponse response =
+                anomalyService.detect(anomalyRequest);
+
+        if(response.isAnomaly()) {
+
+            log.warn("""
+            🚨 Giao dịch bất thường!
+            Amount: {}
+            Mean: {}
+            Std: {}
+           
+            """,
+                    request.getAmount(),
+                    response.getMean(),
+                    response.getStd()
+
+
+            );
+        }
+        return response;
+    }
 }

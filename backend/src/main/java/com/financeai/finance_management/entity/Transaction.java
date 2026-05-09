@@ -1,59 +1,70 @@
-package com.financeai.finance_management.entity;
+    package com.financeai.finance_management.entity;
 
-import com.financeai.finance_management.enums.TransactionStatus;
-import com.financeai.finance_management.enums.TransactionType;
-import jakarta.persistence.*;
-import java.math.BigDecimal;
-import lombok.*;
-import lombok.experimental.SuperBuilder;
-import org.hibernate.annotations.SQLRestriction;
+    import com.financeai.finance_management.enums.TransactionStatus;
+    import com.financeai.finance_management.enums.TransactionType;
+    import jakarta.persistence.*;
+    import lombok.*;
+    import lombok.experimental.SuperBuilder;
+    import org.hibernate.annotations.SQLRestriction;
 
-@Entity
-@Table(name = "transactions")
-@SuperBuilder
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@SQLRestriction("deleted_at IS NULL")
-public class Transaction extends BaseEntity {
+    import java.math.BigDecimal;
+    import java.time.LocalDateTime;
 
-  @Id
-  @Column(name = "id", nullable = false)
-  private String id;
+    @Entity
+    @Table(name = "transactions")
+    @SuperBuilder
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @SQLRestriction("deleted_at IS NULL")
+    public class Transaction extends BaseEntity {
 
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "user_id", nullable = false)
-  private User user;
+        @Id
+        @Column(name = "id", nullable = false)
+        private String id;
 
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "category_id", nullable = false)
-  private Category category;
+        @ManyToOne(fetch = FetchType.LAZY)
+        @JoinColumn(name = "user_id", nullable = false)
+        private User user;
 
-  @Builder.Default
-  @Column(name = "amount", nullable = false, precision = 19, scale = 4)
-  private BigDecimal amount = BigDecimal.ZERO;
+        @ManyToOne(fetch = FetchType.LAZY)
+        @JoinColumn(name = "category_id", nullable = false)
+        private Category category;
 
-  @Enumerated(EnumType.STRING)
-  @Column(name = "type", nullable = false, length = 20)
-  @Builder.Default
-  private TransactionType type = TransactionType.INCOME; // INCOME, EXPENSE, ADJUSTMENT
+        @Builder.Default
+        @Column(name = "amount", nullable = false, precision = 19, scale = 4)
+        private BigDecimal amount = BigDecimal.ZERO;
 
-  @Column(name = "note", columnDefinition = "TEXT")
-  private String note;
+        @Enumerated(EnumType.STRING)
+        @Column(name = "type", nullable = false, length = 20)
+        @Builder.Default
+        private TransactionType type = TransactionType.INCOME; // INCOME, EXPENSE, ADJUSTMENT
 
-  @Column(name = "image_url", columnDefinition = "TEXT")
-  private String imageUrl;
+        @Column(name = "note", columnDefinition = "TEXT")
+        private String note;
 
-  @Builder.Default
-  @Column(name = "is_auto")
-  private boolean isAuto = false;
+        @Column(name = "image_url", columnDefinition = "TEXT")
+        private String imageUrl;
 
-  @Column(name = "transaction_date", nullable = false)
-  private Long transactionDate;
+        @Builder.Default
+        @Column(name = "is_auto")
+        private boolean isAuto = false;
 
-  @Builder.Default
-  @Enumerated(EnumType.STRING)
-  @Column(name = "status")
-  private TransactionStatus status = TransactionStatus.PENDING;
-}
+        @Column(name = "transaction_date", nullable = false)
+        private Long transactionDate;
+
+        @Builder.Default
+        @Enumerated(EnumType.STRING)
+        @Column(name = "status")
+        private TransactionStatus status = TransactionStatus.PENDING;
+
+        @Builder.Default
+        @Column(name = "is_anomaly")
+        private boolean isAnomaly = false;
+
+        @Column(name = "anomaly_message")
+        private String anomalyMessage;
+
+
+    }

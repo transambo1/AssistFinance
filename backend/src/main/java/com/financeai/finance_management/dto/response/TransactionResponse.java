@@ -10,14 +10,20 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 public class TransactionResponse {
-  private String id;
-  private String userId;
-  private String categoryIcon;
-  private String categoryId;
-  private String categoryName;
-  private String categoryColor;
-  private String note;
-  private String transactionDate;
-  private TransactionType type;
-  private BigDecimal amount;
+    private String id;
+    private String userId;
+private String categoryIcon;
+    private String categoryId;
+    private String categoryName;
+    private String categoryColor;
+    private String note;
+    private String transactionDate;
+    private TransactionType type;
+    private BigDecimal amount;
+
+    private Boolean anomaly;
+
+    private Double zScore;
+
+    private String anomalyMessage;
 }
