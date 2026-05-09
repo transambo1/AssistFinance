@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+from typing import Dict
 import google.generativeai as genai
 import json
 
@@ -9,7 +10,7 @@ app = FastAPI(title="Gemini Finance AI")
 # GEMINI CONFIG
 # =========================
 
-GEMINI_API_KEY = "AIzaSyCHngqAD5E_MUn33nkO77NmNSHwczOAthg"
+GEMINI_API_KEY = ""
 
 genai.configure(api_key=GEMINI_API_KEY)
 
@@ -22,6 +23,8 @@ model = genai.GenerativeModel("gemini-2.5-flash")
 class SpendingTrendRequest(BaseModel):
     expenses: list[int]
 
+class SavingAdviceRequest(BaseModel):
+    categories: Dict[str, float]
 # =========================
 # API
 # =========================
@@ -69,4 +72,51 @@ def predict_spending(req: SpendingTrendRequest):
             "prediction": 0,
             "trend": "unknown",
             "analysis": text
+        }
+
+@app.post("/saving-advice")
+def saving_advice(req: SavingAdviceRequest):
+
+    prompt = f"""
+    Bạn là AI chuyên tư vấn tài chính cá nhân.
+
+    Đây là thống kê chi tiêu theo danh mục:
+
+    {req.categories}
+
+    Hãy:
+    - phân tích chi tiêu
+    - gợi ý tiết kiệm
+    - đề xuất cắt giảm hợp lý
+    - trả lời bằng tiếng Việt
+
+    Chỉ trả về JSON hợp lệ:
+
+    {{
+      "analysis": "...",
+      "tips": [
+        "...",
+        "..."
+      ]
+    }}
+    """
+
+    response = model.generate_content(prompt)
+
+    text = response.text.strip()
+
+    text = text.replace("```json", "").replace("```", "").strip()
+
+    print("GEMINI RESPONSE:")
+    print(text)
+
+    try:
+        return json.loads(text)
+
+    except Exception as e:
+        print("JSON ERROR:", e)
+
+        return {
+            "analysis": text,
+            "tips": []
         }
