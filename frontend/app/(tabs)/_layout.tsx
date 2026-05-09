@@ -1,111 +1,130 @@
 import { Tabs } from 'expo-router';
-import { View, Text, Platform, Dimensions, StyleSheet } from 'react-native';
+import { View, Platform, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Ionicons from '@expo/vector-icons/build/Ionicons';
-// Hàm hỗ trợ vẽ Icon (Tạm thời dùng chữ, sau này bạn sẽ thay bằng thư viện Icon thật)
-const TabIcon = ({ name, color }: { name: string, color: string }) => (
-  <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-    <Text style={{ color: color, fontSize: 20 }}>{name}</Text>
-  </View>
-);
 
 export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerShown: false, // Ẩn thanh tiêu đề mặc định phía trên
-        tabBarShowLabel: true,
+        headerShown: false,
+        tabBarShowLabel: false, // Ẩn chữ hoàn toàn để tối giản
         tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: '#1A237E',
-        tabBarInactiveTintColor: '#767683',
+        tabBarActiveTintColor: '#1A237E', // Màu xanh chủ đạo khi focus
+        tabBarInactiveTintColor: '#9CA3AF', // Màu xám nhạt khi không focus
+        // Ép các item nằm chính giữa thanh tab
+        tabBarItemStyle: {
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingTop: Platform.OS === 'ios' ? 15 : 0, // Sửa lỗi lệch tâm trên iOS
+        },
+        // Nền kính mờ bo góc
         tabBarBackground: () => (
-          <BlurView intensity={5} style={[
-            StyleSheet.absoluteFill,
-            { borderRadius: 40, overflow: 'hidden' }
-          ]} tint="light" />
+          <View style={styles.blurContainer}>
+            <BlurView intensity={40} style={StyleSheet.absoluteFill} tint="light" />
+          </View>
         ),
       }}>
+      
+      {/* 1. Trang chủ */}
       <Tabs.Screen
         name="index"
         options={{
-          tabBarIcon: ({ focused }) => (
-            <View style={focused ? styles.activeTab : null}>
-              <Ionicons name={focused ? "map" : "map-outline"} size={24} color={focused ? '#ffffff' : 'gray'} />
+          tabBarIcon: ({ focused, color }) => (
+            <View style={focused ? styles.activeIconWrapper : styles.iconWrapper}>
+              <Ionicons name={focused ? "home" : "home-outline"} size={26} color={color} />
             </View>
           ),
         }}
       />
+
+      {/* 2. Lịch sử giao dịch */}
       <Tabs.Screen
         name="history"
         options={{
-          title: 'History',
-          tabBarIcon: ({ focused }) =>
-            <View style={focused ? styles.activeTab : null}>
-              <Ionicons name={focused ? "map" : "map-outline"} size={24} color={focused ? '#ffffff' : 'gray'} />
-            </View>
-        }}
-      />
-      <Tabs.Screen
-        name="chatAI"
-        options={{
-          title: 'Chat AI',
-          tabBarIcon: ({ color }) => <TabIcon name="🤖" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="budget"
-        options={{
-          title: 'Budget',
-          tabBarIcon: ({ focused }) => (
-            <View style={focused ? styles.activeTab : null}>
-              <Ionicons name={focused ? "map" : "map-outline"} size={24} color={focused ? '#ffffff' : 'gray'} />
+          tabBarIcon: ({ focused, color }) => (
+            <View style={focused ? styles.activeIconWrapper : styles.iconWrapper}>
+              <Ionicons name={focused ? "time" : "time-outline"} size={26} color={color} />
             </View>
           ),
         }}
       />
+
+      {/* 3. Chat AI (Không lồi nữa, ngang hàng) */}
+      <Tabs.Screen
+        name="chatAI"
+        options={{
+          tabBarIcon: ({ focused, color }) => (
+            <View style={focused ? styles.activeIconWrapper : styles.iconWrapper}>
+              <Ionicons name={focused ? "chatbubbles" : "chatbubbles-outline"} size={26} color={color} />
+            </View>
+          ),
+        }}
+      />
+
+      {/* 4. Ngân sách */}
+      <Tabs.Screen
+        name="budget"
+        options={{
+          tabBarIcon: ({ focused, color }) => (
+            <View style={focused ? styles.activeIconWrapper : styles.iconWrapper}>
+              <Ionicons name={focused ? "wallet" : "wallet-outline"} size={26} color={color} />
+            </View>
+          ),
+        }}
+      />
+
+      {/* 5. Tài khoản */}
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
-          tabBarIcon: ({ color }) => <TabIcon name="👤" color={color} />,
+          tabBarIcon: ({ focused, color }) => (
+            <View style={focused ? styles.activeIconWrapper : styles.iconWrapper}>
+              <Ionicons name={focused ? "person" : "person-outline"} size={26} color={color} />
+            </View>
+          ),
         }}
       />
     </Tabs>
   );
 }
+
 const styles = StyleSheet.create({
   tabBar: {
     position: 'absolute',
-    width: Dimensions.get('window').width * 0.88,
-    marginLeft: Dimensions.get('window').width * 0.06,
-    marginRight: Dimensions.get('window').width * 0.06,
-    bottom: 30,
-    height: 50,
-    borderRadius: 40,
-    backgroundColor: 'rgba(207, 204, 204, 0.7)', // Nền trắng trong suốt nhẹ
+    // Căn lề 2 bên tự động thay vì dùng Dimensions để tránh lỗi trên các màn hình kích thước dị
+    left: 20,
+    right: 20,
+    bottom: Platform.OS === 'ios' ? 30 : 20,
+    height: 65, // Chiều cao lý tưởng cho tab bar lơ lửng
+    borderRadius: 35,
+    backgroundColor: 'rgba(255, 255, 255, 0.55)', // Màu trắng hơi trong suốt
     borderTopWidth: 0,
-    borderBottomWidth: 0, // Xóa đường kẻ ngang
-    marginBottom: 0,
-    // Đổ bóng kiểu iOS
+    borderTopColor: 'transparent',
+    elevation: 0, // Chỉnh shadow bằng shadowColor cho cả 2 nền tảng
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 40 },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 10, // Đổ bóng kiểu Android
-    paddingBottom: Platform.OS === 'ios' ? 0 : 0, // Tùy chỉnh cho Android/iOS
+    shadowRadius: 15,
   },
-  activeTab: {
-    // Nền xanh nhạt khi focus
-    position: 'relative',
-    paddingVertical: 8,
-    borderRadius: 25,
-    marginTop: 12,
-    height: 50,
-    width: 70,
+  blurContainer: {
+    flex: 1,
+    borderRadius: 35,
+    overflow: 'hidden',
+  },
+  iconWrapper: {
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(138, 138, 138, 0.8)',
-    //backgroundColor: 'rgba(59, 191, 178, 0.8)',
+    width: 50,
+    height: 50,
+  },
+  // Hiệu ứng bao quanh Icon khi được chọn (rất phổ biến trên iOS hiện nay)
+  activeIconWrapper: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: 'rgba(26, 35, 126, 0.1)', // Một lớp nền xanh siêu nhạt ôm lấy Icon
   }
-}
-);
+});

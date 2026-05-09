@@ -15,7 +15,6 @@ import { formatMoney } from '../../src/utils/formatters';
 import { aiService } from '../../src/api/aiService';
 import { transactionService } from '@/src/api/transactionService';
 
-
 export default function DashboardScreen() {
   const router = useRouter();
   const { isDark, colors } = useTheme();
@@ -24,8 +23,8 @@ export default function DashboardScreen() {
   const [aiResult, setAiResult] = useState<{ title: string; description: string } | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [showAiModal, setShowAiModal] = useState(false);
-  // Thêm state này vào đầu component AIChatScreen
-  const [editingTransaction, setEditingTransaction] = useState<any>(null); // Lưu thông tin giao dịch đang sửa
+  const [editingTransaction, setEditingTransaction] = useState<any>(null); 
+
   // --- QUERIES CHỐNG XUNG ĐỘT CACHE ---
   const { data: rawUserData, isLoading: isUserLoading } = useQuery<any>({
     queryKey: ['userProfile'],
@@ -51,27 +50,26 @@ export default function DashboardScreen() {
 
   const recentTransactions = Array.isArray(transactionsData) ? transactionsData.slice(0, 5) : [];
 
-  // --- 1. GIỚI HẠN HIỂN THỊ TỔNG SỐ DƯ (MAX 999 TỶ) ---
-  const formatCappedBalance = (balance: number) => {
-    const MAX_LIMIT = 9990000000;
-    const finalBalance = balance > MAX_LIMIT ? MAX_LIMIT : balance;
-    return formatMoney(finalBalance);
-  };
-
-  // --- 2. TÍNH THU NHẬP / CHI TIÊU HÔM NAY ---
+  // --- LOGIC MỚI: TÍNH THU NHẬP / CHI TIÊU HÔM NAY ---
   const todayStats = useMemo(() => {
     let income = 0;
     let expense = 0;
 
     if (Array.isArray(transactionsData) && transactionsData.length > 0) {
+      // Lấy thời điểm bắt đầu của ngày hôm nay để so sánh chuẩn xác
       const today = new Date();
-      const todayStr = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+      today.setHours(0, 0, 0, 0);
 
       transactionsData.forEach((t: any) => {
-        const dateStr = t.transactionDate || t.createdAt || "";
-        const txDate = String(dateStr).substring(0, 10);
+        const dateStr = t.transactionDate || t.createdAt;
+        if (!dateStr) return;
 
-        if (txDate === todayStr) {
+        // Chuyển đổi ngày giao dịch về Date object và đưa về đầu ngày
+        const txDate = new Date(dateStr);
+        txDate.setHours(0, 0, 0, 0);
+
+        // So sánh 2 thời điểm timestamp
+        if (txDate.getTime() === today.getTime()) {
           if (t.type === 'INCOME') income += t.amount;
           if (t.type === 'EXPENSE') expense += t.amount;
         }
@@ -80,7 +78,7 @@ export default function DashboardScreen() {
     return { income, expense };
   }, [transactionsData]);
 
-  // --- 3. TÍNH % BIẾN ĐỘNG THU NHẬP SO VỚI THÁNG TRƯỚC ---
+  // --- TÍNH % BIẾN ĐỘNG THU NHẬP SO VỚI THÁNG TRƯỚC ---
   const trendData = useMemo(() => {
     if (!Array.isArray(transactionsData) || transactionsData.length === 0) return { displayPercent: "0", isUp: true };
 
@@ -160,18 +158,18 @@ export default function DashboardScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-        {/* --- TỔNG SỐ DƯ (Full số, max 999 tỷ) --- */}
+        {/* --- TỔNG SỐ DƯ (Đã bỏ giới hạn 999 tỷ) --- */}
         <View style={styles.section}>
 
           <View style={styles.balanceCard}>
             <MaterialIcons name="account-balance-wallet" size={100} color="rgba(255,255,255,0.1)" style={styles.balanceIconBg} />
             <Text style={styles.sectionLabel}>TỔNG SỐ DƯ KHẢ DỤNG</Text>
             <Text style={styles.balanceAmount} numberOfLines={1} adjustsFontSizeToFit>
-              {formatCappedBalance(userData?.currentBalance || 0)}
+              {formatMoney(userData?.currentBalance || 0)}
             </Text>
             <Text style={styles.balanceCurrency}>VND</Text>
 
-            {/* --- TREND BADGE (Phần Trăm Làm Gọn) --- */}
+            {/* --- TREND BADGE --- */}
             <View style={[styles.trendBadge, { backgroundColor: trendData.isUp ? 'rgba(115, 255, 122, 0.2)' : 'rgba(255, 99, 95, 0.15)' }]}>
               <MaterialIcons name={trendData.isUp ? "trending-up" : "trending-down"} size={16} color={trendData.isUp ? "#a3f69c" : "#ff635f"} />
               <Text style={[styles.trendText, { color: trendData.isUp ? "#a3f69c" : "#ff635f" }]}>
@@ -199,7 +197,7 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/* --- BENTO GRID (Full số, không rớt dòng) --- */}
+        {/* --- BENTO GRID: CHI TIÊU HÔM NAY --- */}
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitleSmall}>GIAO DỊCH HÔM NAY</Text>
         </View>

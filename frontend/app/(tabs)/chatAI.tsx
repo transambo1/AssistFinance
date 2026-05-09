@@ -7,14 +7,15 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { aiService } from '../../src/api/aiService';
-import { transactionService } from '../../src/api/transactionService'; 
+import { transactionService } from '../../src/api/transactionService';
 import { categoryService } from '../../src/api/categoryService'; // KHÔI PHỤC: Import Category API
-import { useQuery } from '@tanstack/react-query'; // KHÔI PHỤC: Import useQuery
+import { useQuery, useQueryClient } from '@tanstack/react-query'; // KHÔI PHỤC: Import useQuery
 import { Message } from '../../src/types';
 
 export default function AIChatScreen() {
     const [inputText, setInputText] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const queryClient = useQueryClient();
     const scrollViewRef = useRef<ScrollView>(null);
 
     // --- KHÔI PHỤC: LẤY DANH SÁCH DANH MỤC TỪ BACKEND ---
@@ -45,93 +46,95 @@ export default function AIChatScreen() {
     ]);
     // --- HÀM XỬ LÝ CHỌN ẢNH VÀ GỌI OCR ---
     const handlePickImage = async () => {
-    const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!granted) {
-        alert("Bạn cần cấp quyền truy cập ảnh.");
-        return;
-    }
+        const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!granted) {
+            alert("Bạn cần cấp quyền truy cập ảnh.");
+            return;
+        }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        quality: 1,
-    });
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            quality: 1,
+        });
 
-    if (!result.canceled) {
-        const selectedUri = result.assets[0].uri;
-        const tempId = Date.now().toString();
+        if (!result.canceled) {
+            const selectedUri = result.assets[0].uri;
+            const tempId = Date.now().toString();
 
-        // 1. Hiện ảnh user gửi lên luôn cho đẹp
-        setMessages(prev => [...prev, { id: tempId, sender: 'user', imageUri: selectedUri }]);
-        setIsLoading(true);
+            // 1. Hiện ảnh user gửi lên luôn cho đẹp
+            setMessages(prev => [...prev, { id: tempId, sender: 'user', imageUri: selectedUri }]);
+            setIsLoading(true);
 
-        try {
-    const response = await aiService.uploadOcrImage(selectedUri);
+            try {
+                const response = await aiService.uploadOcrImage(selectedUri);
 
-let finalData: any = response;
+                let finalData: any = response;
 
-// Nếu response là string JSON thì parse
-if (typeof finalData === 'string') {
-    finalData = JSON.parse(finalData);
-}
+                // Nếu response là string JSON thì parse
+                if (typeof finalData === 'string') {
+                    finalData = JSON.parse(finalData);
+                }
 
-// Nếu response.data tồn tại
-if (finalData?.data) {
-    finalData = finalData.data;
-}
+                // Nếu response.data tồn tại
+                if (finalData?.data) {
+                    finalData = finalData.data;
+                }
 
-// Nếu response.data.data tồn tại
-if (finalData?.data) {
-    finalData = finalData.data;
-}
+                // Nếu response.data.data tồn tại
+                if (finalData?.data) {
+                    finalData = finalData.data;
+                }
 
-// parse string lần nữa nếu nested string
-if (typeof finalData === 'string') {
-    finalData = JSON.parse(finalData);
-}
+                // parse string lần nữa nếu nested string
+                if (typeof finalData === 'string') {
+                    finalData = JSON.parse(finalData);
+                }
 
-console.log("FINAL OCR DATA:", finalData);
-console.log("AMOUNT:", finalData.amount);
+                console.log("FINAL OCR DATA:", finalData);
+                console.log("AMOUNT:", finalData.amount);
 
-   
-    // Kiểm tra xem đã tìm thấy 'amount' chưa
-    if (!finalData || finalData.amount === undefined) {
-        throw new Error("Không tìm thấy số tiền trong dữ liệu");
-    }
 
-    // --- LOGIC HIỂN THỊ (Giữ nguyên phần đẹp đẽ cũ) ---
-    const getEmoji = (icon: string) => {
-        const map: any = { 'restaurant': '🍔', 'car': '🚗', 'salary': '💰', 'gift': '🎁' };
-        return map[icon] || '🧾';
-    };
+                // Kiểm tra xem đã tìm thấy 'amount' chưa
+                if (!finalData || finalData.amount === undefined) {
+                    throw new Error("Không tìm thấy số tiền trong dữ liệu");
+                }
 
-    const emoji = getEmoji(finalData.categoryIcon);
-    const typeText = finalData.type === 'INCOME' ? 'Thu nhập 💰' : 'Chi phí 💸';
-    const formattedAmount = Number(finalData.amount).toLocaleString('vi-VN');
+                // --- LOGIC HIỂN THỊ (Giữ nguyên phần đẹp đẽ cũ) ---
+                const getEmoji = (icon: string) => {
+                    const map: any = { 'restaurant': '🍔', 'car': '🚗', 'salary': '💰', 'gift': '🎁' };
+                    return map[icon] || '🧾';
+                };
 
-    const aiReport = `${emoji} Mình đã bóc tách xong hóa đơn:
+                const emoji = getEmoji(finalData.categoryIcon);
+                const typeText = finalData.type === 'INCOME' ? 'Thu nhập 💰' : 'Chi phí 💸';
+                const formattedAmount = Number(finalData.amount).toLocaleString('vi-VN');
+
+                const aiReport = `${emoji} Mình đã bóc tách xong hóa đơn:
 • Loại: ${typeText}
 • Ngày: ${finalData.transactionDate || 'Hôm nay'}
 • Số tiền: ₫${formattedAmount}
 • Danh mục: ${finalData.categoryName}`;
 
-    setMessages(prev => [...prev, {
-        id: `ai_ocr_${Date.now()}`,
-        sender: 'ai',
-        text: aiReport,
-        actionType: 'PARSE_TRANSACTION',
-        transactionData: finalData
-    }]);
+                setMessages(prev => [...prev, {
+                    id: `ai_ocr_${Date.now()}`,
+                    sender: 'ai',
+                    text: aiReport,
+                    actionType: 'PARSE_TRANSACTION',
+                    transactionData: finalData
+                }]);
 
-} catch (error: any) {
-    console.error("LỖI THỰC TẾ:", error);
-    setMessages(prev => [...prev, { 
-        id: `err_${Date.now()}`, 
-        sender: 'ai', 
-        text: `Hic, lỗi xử lý: ${error.message}. Thành check lại cấu trúc data nhé!` 
-    }]);
-}
-    }
-}; // Kết thúc hàm handlePickImage
+            } catch (error: any) {
+                console.error("LỖI THỰC TẾ:", error);
+                setMessages(prev => [...prev, {
+                    id: `err_${Date.now()}`,
+                    sender: 'ai',
+                    text: `Hic, lỗi xử lý: ${error.message}. Thành check lại cấu trúc data nhé!`
+                }]);
+            } finally {
+                setIsLoading(false);
+            }
+        }
+    }; // Kết thúc hàm handlePickImage
     // Hàm xử lý gửi tin nhắn
     const handleSend = async () => {
         if (!inputText.trim()) return;
@@ -203,6 +206,10 @@ console.log("AMOUNT:", finalData.amount);
                 type: editType             // Lấy Type mới nếu user đổi
             });
 
+            queryClient.invalidateQueries({ queryKey: ['transactions'] }); // Làm mới Lịch sử
+            queryClient.invalidateQueries({ queryKey: ['userProfile'] });  // Làm mới Số dư Dashboard
+            queryClient.invalidateQueries({ queryKey: ['budgets'] });
+
             // 2. Cập nhật lại UI trong màn hình chat
             setMessages(prev => prev.map(msg => {
                 if (msg.actionType === 'PARSE_TRANSACTION' && msg.transactionData?.id === editingTransaction.id) {
@@ -235,26 +242,26 @@ console.log("AMOUNT:", finalData.amount);
     const selectedCategoryName = availableCategories.find((c: any) => c.id === editCategoryId)?.name || 'Chọn danh mục';
 
     const renderMessageItem = (msg: Message, index: number) => {
-    if (msg.sender === 'user') {
-        return (
-            <View key={msg.id} style={styles.messageRowUser}>
-                {/* --- SỬA LOGIC Ở ĐÂY --- */}
-                {msg.imageUri ? (
-                    // Nếu có imageUri, hiện hình ảnh
-                    <Image 
-                        source={{ uri: msg.imageUri }} 
-                        style={styles.sentImageUser} 
-                        resizeMode="cover"
-                    />
-                ) : (
-                    // Nếu không có, hiện Text bubble cũ
-                    <View style={styles.bubbleUser}>
-                        <Text style={styles.textUser}>{msg.text}</Text>
-                    </View>
-                )}
-            </View>
-        );
-    }
+        if (msg.sender === 'user') {
+            return (
+                <View key={msg.id} style={styles.messageRowUser}>
+                    {/* --- SỬA LOGIC Ở ĐÂY --- */}
+                    {msg.imageUri ? (
+                        // Nếu có imageUri, hiện hình ảnh
+                        <Image
+                            source={{ uri: msg.imageUri }}
+                            style={styles.sentImageUser}
+                            resizeMode="cover"
+                        />
+                    ) : (
+                        // Nếu không có, hiện Text bubble cũ
+                        <View style={styles.bubbleUser}>
+                            <Text style={styles.textUser}>{msg.text}</Text>
+                        </View>
+                    )}
+                </View>
+            );
+        }
 
         return (
             <React.Fragment key={msg.id}>
@@ -402,48 +409,48 @@ console.log("AMOUNT:", finalData.amount);
                         {/* --- KHÔI PHỤC: NÚT CHỌN THU NHẬP / CHI PHÍ --- */}
                         <Text style={styles.modalLabel}>Loại giao dịch</Text>
                         <View style={styles.typeSelectorRow}>
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={[styles.typeBtn, editType === 'EXPENSE' && styles.typeBtnActiveExpense]}
                                 onPress={() => { setEditType('EXPENSE'); setEditCategoryId(''); setShowCategoryPicker(false); }}
                             >
-                                <Text style={[styles.typeBtnText, editType === 'EXPENSE' && {color: '#fff'}]}>Chi phí</Text>
+                                <Text style={[styles.typeBtnText, editType === 'EXPENSE' && { color: '#fff' }]}>Chi phí</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={[styles.typeBtn, editType === 'INCOME' && styles.typeBtnActiveIncome]}
                                 onPress={() => { setEditType('INCOME'); setEditCategoryId(''); setShowCategoryPicker(false); }}
                             >
-                                <Text style={[styles.typeBtnText, editType === 'INCOME' && {color: '#fff'}]}>Thu nhập</Text>
+                                <Text style={[styles.typeBtnText, editType === 'INCOME' && { color: '#fff' }]}>Thu nhập</Text>
                             </TouchableOpacity>
                         </View>
 
                         {/* --- KHÔI PHỤC: DROPDOWN CHỌN DANH MỤC --- */}
                         <Text style={styles.modalLabel}>Danh mục</Text>
-                        <TouchableOpacity 
-                            style={[styles.modalInput, styles.dropdownSelector]} 
+                        <TouchableOpacity
+                            style={[styles.modalInput, styles.dropdownSelector]}
                             onPress={() => setShowCategoryPicker(!showCategoryPicker)}
                         >
-                            <Text style={{color: editCategoryId ? '#1b1b21' : '#999', fontSize: 15}}>{selectedCategoryName}</Text>
+                            <Text style={{ color: editCategoryId ? '#1b1b21' : '#999', fontSize: 15 }}>{selectedCategoryName}</Text>
                             <MaterialIcons name={showCategoryPicker ? "keyboard-arrow-up" : "keyboard-arrow-down"} size={24} color="#767683" />
                         </TouchableOpacity>
 
                         {showCategoryPicker && (
                             <View style={styles.dropdownList}>
-                                <ScrollView nestedScrollEnabled style={{maxHeight: 150}}>
+                                <ScrollView nestedScrollEnabled style={{ maxHeight: 150 }}>
                                     {availableCategories.map((cat: any) => (
-                                        <TouchableOpacity 
-                                            key={cat.id} 
+                                        <TouchableOpacity
+                                            key={cat.id}
                                             style={styles.dropdownItem}
                                             onPress={() => {
                                                 setEditCategoryId(cat.id);
                                                 setShowCategoryPicker(false);
                                             }}
                                         >
-                                            <MaterialIcons name={(cat.icon as any) || 'category'} size={20} color={cat.color || '#1a237e'} style={{marginRight: 10}}/>
-                                            <Text style={{fontSize: 15, color: '#1b1b21'}}>{cat.name}</Text>
+                                            <MaterialIcons name={(cat.icon as any) || 'category'} size={20} color={cat.color || '#1a237e'} style={{ marginRight: 10 }} />
+                                            <Text style={{ fontSize: 15, color: '#1b1b21' }}>{cat.name}</Text>
                                         </TouchableOpacity>
                                     ))}
                                     {availableCategories.length === 0 && (
-                                        <Text style={{padding: 10, textAlign: 'center', color: '#999'}}>Không có danh mục nào.</Text>
+                                        <Text style={{ padding: 10, textAlign: 'center', color: '#999' }}>Không có danh mục nào.</Text>
                                     )}
                                 </ScrollView>
                             </View>
@@ -500,7 +507,7 @@ const styles = StyleSheet.create({
     headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#000666' },
     headerBtn: { padding: 8 },
 
-    keyboardAvoid: { flex: 1, marginBottom: 28 },
+    keyboardAvoid: { flex: 1, marginBottom: 30 },
     chatScrollArea: { flex: 1 },
     chatContainer: { paddingHorizontal: 24, paddingBottom: 10, paddingTop: 16 },
 
@@ -557,18 +564,18 @@ const styles = StyleSheet.create({
     modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#1b1b21' },
     modalLabel: { fontSize: 13, fontWeight: '600', color: '#454652', marginBottom: 8 },
     modalInput: { borderWidth: 1, borderColor: '#e8e8e8', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, fontSize: 15, marginBottom: 16, color: '#1b1b21' },
-    
+
     // --- KHÔI PHỤC: Style cho Nút Chọn Loại & Danh mục ---
     typeSelectorRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
     typeBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: '#e8e8e8', alignItems: 'center', backgroundColor: '#f9f9f9' },
     typeBtnText: { fontSize: 14, fontWeight: '600', color: '#767683' },
     typeBtnActiveExpense: { backgroundColor: '#ff635f', borderColor: '#ff635f' },
     typeBtnActiveIncome: { backgroundColor: '#1b6d24', borderColor: '#1b6d24' },
-    
+
     dropdownSelector: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 0 },
     dropdownList: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e8e8e8', borderRadius: 12, marginTop: 4, marginBottom: 16, elevation: 2 },
     dropdownItem: { flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-    
+
     modalActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
     cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: '#f0f0f0', alignItems: 'center' },
     cancelBtnText: { fontSize: 15, fontWeight: '600', color: '#454652' },

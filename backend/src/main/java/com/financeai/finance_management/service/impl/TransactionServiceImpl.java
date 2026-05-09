@@ -96,6 +96,7 @@ public class TransactionServiceImpl implements ITransactionService {
 
         transaction.setAmount(request.getAmount());
         transaction.setNote(request.getNote());
+        transaction.setType(request.getType());
         transaction.setImageUrl(request.getImageUrl());
 
         transactionRepository.save(transaction);

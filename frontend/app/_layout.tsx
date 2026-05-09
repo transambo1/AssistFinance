@@ -12,13 +12,15 @@ export default function RootLayout() {
   return (
     // 3. BỌC LỚP NGOÀI CÙNG LÀ QueryClientProvider
     <QueryClientProvider client={queryClient}>
-      
       <MyCustomThemeProvider> 
         <PaperProvider>
           <NavThemeProvider value={DefaultTheme}> 
             <Stack>
               <Stack.Screen name="index" options={{ headerShown: false }} />
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
+              <Stack.Screen name="(auth)/register" options={{ headerShown: false }} />
+              <Stack.Screen name="add-transaction" options={{ headerShown: false }} />
             </Stack>
           </NavThemeProvider>
         </PaperProvider>

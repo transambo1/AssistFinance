@@ -3,9 +3,9 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Keyboa
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { categoryService } from '@/src/api/categoryService';
-import { transactionService } from '@/src/api/transactionService'; // Import thêm service này
+import { transactionService } from '@/src/api/transactionService'; 
 import { Category } from '@/src/types/index';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'; // Thêm Mutation
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'; 
 
 export default function AddTransactionScreen() {
     const router = useRouter();
@@ -15,7 +15,6 @@ export default function AddTransactionScreen() {
     const [amount, setAmount] = useState('');
     const [note, setNote] = useState('');
     const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-
 
     const {
         data: categoriesData,
@@ -45,10 +44,27 @@ export default function AddTransactionScreen() {
         }
     });
 
-    // Hàm format số tiền khi nhập (Ví dụ: 1000 -> 1.000)
+    // Hàm format số tiền khi nhập (Ví dụ: 1000 -> 1.000) và giới hạn 50 tỷ
     const handleAmountChange = (text: string) => {
+        // Xóa tất cả các ký tự không phải số
         const cleaned = text.replace(/\D/g, '');
-        const formatted = cleaned !== '' ? Number(cleaned).toLocaleString('vi-VN') : '';
+        
+        if (cleaned === '') {
+            setAmount('');
+            return;
+        }
+
+        const numValue = Number(cleaned);
+
+        // Kiểm tra giới hạn 50 Tỷ (50,000,000,000)
+        if (numValue > 50000000000) {
+            Alert.alert('Giới hạn', 'Số tiền không được vượt quá 50 Tỷ VND.');
+            // Tự động set về 50 tỷ nếu nhập lố
+            setAmount((50000000000).toLocaleString('vi-VN'));
+            return;
+        }
+
+        const formatted = numValue.toLocaleString('vi-VN');
         setAmount(formatted);
     };
 
@@ -60,6 +76,13 @@ export default function AddTransactionScreen() {
             Alert.alert('Thông báo', 'Vui lòng nhập số tiền hợp lệ.');
             return;
         }
+        
+        // Check bảo mật lần 2 trước khi gửi
+        if (rawAmount > 50000000000) {
+             Alert.alert('Giới hạn', 'Số tiền không được vượt quá 50 Tỷ VND.');
+             return;
+        }
+
         if (!selectedCategoryId) {
             Alert.alert('Thông báo', 'Vui lòng chọn một danh mục.');
             return;
@@ -74,7 +97,7 @@ export default function AddTransactionScreen() {
             imageUrl: null,
             isAuto: false
         };
-        console.log(payload)
+        
         createMutation.mutate(payload);
     };
 
@@ -154,15 +177,18 @@ export default function AddTransactionScreen() {
                                     <Text style={styles.categoryText} numberOfLines={1}>{cat.name}</Text>
                                 </TouchableOpacity>
                             ))}
-                            <TouchableOpacity
-                                style={[styles.categoryItem, styles.addCategoryItem]}
-                                onPress={() => router.push('/create-category')}
-                            >
-                                <View style={styles.addIconCircle}>
-                                    <MaterialIcons name="add" size={24} color="#767683" />
-                                </View>
-                                <Text style={[styles.categoryText, { color: '#767683' }]}>Thêm mới</Text>
-                            </TouchableOpacity>
+                           <TouchableOpacity
+    style={[styles.categoryItem, styles.addCategoryItem]}
+    onPress={() => router.push({ 
+        pathname: '/manage-categories', 
+        params: { type: type } // Truyền loại giao dịch hiện tại qua
+    })}
+>
+    <View style={styles.addIconCircle}>
+        <MaterialIcons name="add" size={24} color="#767683" />
+    </View>
+    <Text style={[styles.categoryText, { color: '#767683' }]}>Quản lý</Text>
+</TouchableOpacity>
                         </View>
                     )}
 
