@@ -9,19 +9,19 @@ import com.financeai.finance_management.dto.response.BudgetResponse;
 
 public interface IBudgetService {
 
-    BaseResponse<BudgetResponse> createBudget(BudgetCreationRequest request);
+  BaseResponse<BudgetResponse> createBudget(BudgetCreationRequest request);
 
-    BaseResponse<BudgetResponse> updateBudget(String id, BudgetUpdateRequest request);
+  BaseResponse<BudgetResponse> updateBudget(String id, BudgetUpdateRequest request);
 
-    BaseResponse<BudgetResponse> getBudgetById(String id);
+  BaseResponse<BudgetResponse> getBudgetById(String id);
 
-    BaseResponse<BasePaginationResponse<BudgetResponse>> getAllBudgets(BudgetFilterRequest request);
+  BaseResponse<BasePaginationResponse<BudgetResponse>> getAllBudgets(BudgetFilterRequest request);
 
-    BaseResponse<String> activateBudget(String id);
+  BaseResponse<String> activateBudget(String id);
 
-    BaseResponse<String> deactivateBudget(String id);
+  BaseResponse<String> deactivateBudget(String id);
 
-    BaseResponse<String> softDeleteBudget(String id);
+  BaseResponse<String> softDeleteBudget(String id);
 
-    String getCurrentUserId();
+  String getCurrentUserId();
 }

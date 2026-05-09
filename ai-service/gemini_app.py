@@ -9,7 +9,7 @@ app = FastAPI(title="Gemini Finance AI")
 # GEMINI CONFIG
 # =========================
 
-GEMINI_API_KEY = "AIzaSyCHngqAD5E_MUn33nkO77NmNSHwczOAthg"
+GEMINI_API_KEY = "AIzaSyC16REUTLZVuYzLbTND9Sk4DcKXq9KJP1o"
 
 genai.configure(api_key=GEMINI_API_KEY)
 

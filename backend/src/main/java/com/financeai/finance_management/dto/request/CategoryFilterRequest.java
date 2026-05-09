@@ -10,20 +10,20 @@ import org.springframework.data.jpa.domain.Specification;
 @Getter
 @Setter
 public class CategoryFilterRequest extends FilterRequest<Category> {
-    private String search;
-    private String userId;
-    private CategoryType type;
-    private Boolean isArchived;
-    private Boolean isActive;
+  private String search;
+  private String userId;
+  private CategoryType type;
+  private Boolean isArchived;
+  private Boolean isActive;
 
-    @Override
-    public Specification<Category> specification() {
-        return CategorySpecification.builder()
-                .withKeyword(getSearch())
-                .withUserId(getUserId())
-                .withType(getType())
-                .withArchived(getIsArchived())
-                .withActive(getIsActive())
-                .build();
-    }
+  @Override
+  public Specification<Category> specification() {
+    return CategorySpecification.builder()
+        .withKeyword(getSearch())
+        .withUserId(getUserId())
+        .withType(getType())
+        .withArchived(getIsArchived())
+        .withActive(getIsActive())
+        .build();
+  }
 }

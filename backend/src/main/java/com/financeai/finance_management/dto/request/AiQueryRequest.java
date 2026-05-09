@@ -6,5 +6,5 @@ import lombok.Setter;
 @Getter
 @Setter
 public class AiQueryRequest {
-    private String question;
+  private String question;
 }

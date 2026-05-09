@@ -1,12 +1,10 @@
 package com.financeai.finance_management.service.impl;
 
-import com.financeai.finance_management.config.context.UserContext;
-import com.financeai.finance_management.config.context.UserContextHolder;
+import com.financeai.finance_management.dto.request.TransactionChangedEvent;
 import com.financeai.finance_management.dto.request.TransactionFilterRequest;
 import com.financeai.finance_management.dto.request.UpsertTransactionRequest;
 import com.financeai.finance_management.dto.response.BasePaginationResponse;
 import com.financeai.finance_management.dto.response.BaseResponse;
-import com.financeai.finance_management.dto.response.CategoryResponse;
 import com.financeai.finance_management.dto.response.TransactionResponse;
 import com.financeai.finance_management.entity.Category;
 import com.financeai.finance_management.entity.Transaction;
@@ -20,138 +18,167 @@ import com.financeai.finance_management.repository.*;
 import com.financeai.finance_management.service.IBudgetService;
 import com.financeai.finance_management.service.ITransactionService;
 import com.financeai.finance_management.specification.TransactionSpecification;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.time.Instant;
-import java.util.UUID;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TransactionServiceImpl implements ITransactionService {
 
-    private final TransactionRepository transactionRepository;
-    private final UserRepository userRepository;
-    private final CategoryRepository categoryRepository;
+  private final TransactionRepository transactionRepository;
+  private final UserRepository userRepository;
+  private final CategoryRepository categoryRepository;
 
-    private final IBudgetService budgetService;
-    private final TransactionMapper transactionMapper;
+  private final IBudgetService budgetService;
+  private final TransactionMapper transactionMapper;
+  private final ApplicationEventPublisher eventPublisher;
 
-    @Override
-    @Transactional
-    public BaseResponse<TransactionResponse> createTransaction(UpsertTransactionRequest request) {
+  @Override
+  @Transactional
+  public BaseResponse<TransactionResponse> createTransaction(UpsertTransactionRequest request) {
 
-        var userContext = budgetService.getCurrentUserId();
-        User user = userRepository.findById(userContext)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+    var userContext = budgetService.getCurrentUserId();
+    User user =
+        userRepository
+            .findById(userContext)
+            .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
-        Category category = categoryRepository.findById(request.getCategoryId())
-                .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
+    Category category =
+        categoryRepository
+            .findById(request.getCategoryId())
+            .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
 
-        Transaction transaction = Transaction.builder()
-                .id(UUID.randomUUID().toString())
-                .user(user)
-                .category(category)
-                .amount(request.getAmount())
-                .type(request.getType())
-                .note(request.getNote())
-                .imageUrl(request.getImageUrl())
-                .isAuto(request.getIsAuto())
-                .transactionDate(request.getTransactionDate() != null
-                        ? request.getTransactionDate()
-                        : Instant.now().toEpochMilli())
-                .status(TransactionStatus.SUCCESS)
-                .build();
-        transactionRepository.save(transaction);
+    Transaction transaction =
+        Transaction.builder()
+            .id(UUID.randomUUID().toString())
+            .user(user)
+            .category(category)
+            .amount(request.getAmount())
+            .type(request.getType())
+            .note(request.getNote())
+            .imageUrl(request.getImageUrl())
+            .isAuto(request.getIsAuto())
+            .transactionDate(
+                request.getTransactionDate() != null
+                    ? request.getTransactionDate()
+                    : Instant.now().toEpochMilli())
+            .status(TransactionStatus.SUCCESS)
+            .build();
+    transactionRepository.save(transaction);
 
-        updateUserBalance(user, request.getAmount(), request.getType(), false);
+    updateUserBalance(user, request.getAmount(), request.getType(), false);
+    eventPublisher.publishEvent(
+        new TransactionChangedEvent(
+            user.getId(), request.getType(), transaction.getTransactionDate()));
+    return BaseResponse.ok(transactionMapper.toResponse(transaction));
+  }
 
-        return BaseResponse.ok(transactionMapper.toResponse(transaction));
+  @Override
+  @Transactional
+  public BaseResponse<TransactionResponse> updateTransaction(
+      String id, UpsertTransactionRequest request) {
+    Transaction transaction =
+        transactionRepository
+            .findById(id)
+            .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
+
+    var userContext = budgetService.getCurrentUserId();
+    User user =
+        userRepository
+            .findById(userContext)
+            .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
+
+    updateUserBalance(user, transaction.getAmount(), transaction.getType(), true);
+
+    if (!transaction.getCategory().getId().equals(request.getCategoryId())) {
+      Category newCategory =
+          categoryRepository
+              .findById(request.getCategoryId())
+              .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
+      transaction.setCategory(newCategory);
     }
 
-    @Override
-    @Transactional
-    public BaseResponse<TransactionResponse> updateTransaction(String id, UpsertTransactionRequest request) {
-        Transaction transaction = transactionRepository.findById(id)
-                .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
+    transaction.setAmount(request.getAmount());
+    transaction.setNote(request.getNote());
+    transaction.setImageUrl(request.getImageUrl());
 
-        var userContext = budgetService.getCurrentUserId();
-        User user = userRepository.findById(userContext)
-                .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
+    transactionRepository.save(transaction);
+    updateUserBalance(user, transaction.getAmount(), transaction.getType(), false);
 
-        updateUserBalance(user, transaction.getAmount(), transaction.getType(), true);
+    eventPublisher.publishEvent(
+        new TransactionChangedEvent(
+            user.getId(), request.getType(), transaction.getTransactionDate()));
+    log.info("Updated transaction {}: New amount {}", id, transaction.getAmount());
+    return BaseResponse.ok(transactionMapper.toResponse(transaction));
+  }
 
-        if (!transaction.getCategory().getId().equals(request.getCategoryId())) {
-            Category newCategory = categoryRepository.findById(request.getCategoryId())
-                    .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
-            transaction.setCategory(newCategory);
-        }
+  @Override
+  @Transactional
+  public BaseResponse<Void> deleteTransaction(String id) {
+    Transaction transaction =
+        transactionRepository
+            .findById(id)
+            .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
 
-        transaction.setAmount(request.getAmount());
-        transaction.setNote(request.getNote());
-        transaction.setImageUrl(request.getImageUrl());
+    var userContext = budgetService.getCurrentUserId();
+    User user =
+        userRepository
+            .findById(userContext)
+            .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
 
-        transactionRepository.save(transaction);
-        updateUserBalance(user, transaction.getAmount(), transaction.getType(), false);
+    updateUserBalance(user, transaction.getAmount(), transaction.getType(), true);
+    transaction.setDeletedAt(Instant.now().toEpochMilli());
+    transaction.deactivate();
+    transactionRepository.save(transaction);
+    eventPublisher.publishEvent(
+        new TransactionChangedEvent(
+            user.getId(), transaction.getType(), transaction.getTransactionDate()));
+    return BaseResponse.ok(null);
+  }
 
-        log.info("Updated transaction {}: New amount {}", id, transaction.getAmount());
-        return BaseResponse.ok(transactionMapper.toResponse(transaction));
+  @Override
+  @Transactional(readOnly = true)
+  public BaseResponse<BasePaginationResponse<TransactionResponse>> getTransactionHistories(
+      TransactionFilterRequest request) {
+    var userContext = budgetService.getCurrentUserId();
+
+    Specification<Transaction> spec =
+        TransactionSpecification.builder()
+            .withKeyword(request.getSearch())
+            .withRegistrationDateRange(request.getStartDate(), request.getEndDate())
+            .withUserId(userContext)
+            .withCategoryId(request.getCategoryId())
+            .build();
+
+    Pageable pageable = request.pageable();
+
+    Page<TransactionResponse> pageResponse =
+        transactionRepository.findAll(spec, pageable).map(transactionMapper::toResponse);
+
+    return BaseResponse.ok(BasePaginationResponse.of(pageResponse));
+  }
+
+  private void updateUserBalance(
+      User user, BigDecimal amount, TransactionType type, boolean isReverting) {
+    BigDecimal adjustment = (TransactionType.INCOME.equals(type)) ? amount : amount.negate();
+
+    if (isReverting) {
+      adjustment = adjustment.negate();
     }
 
-    @Override
-    @Transactional
-    public BaseResponse<Void> deleteTransaction(String id) {
-        Transaction transaction = transactionRepository.findById(id)
-                .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
+    BigDecimal newBalance = user.getCurrentBalance().add(adjustment);
 
-        var userContext = budgetService.getCurrentUserId();
-        User user = userRepository.findById(userContext)
-                .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
-
-        updateUserBalance(user, transaction.getAmount(), transaction.getType(), true);
-        transaction.setDeletedAt(Instant.now().toEpochMilli());
-        transaction.deactivate();
-        transactionRepository.save(transaction);
-        return BaseResponse.ok(null);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public BaseResponse<BasePaginationResponse<TransactionResponse>> getTransactionHistories(TransactionFilterRequest request) {
-        var userContext = budgetService.getCurrentUserId();
-
-        Specification<Transaction> spec = TransactionSpecification.builder()
-                    .withKeyword(request.getSearch())
-                    .withRegistrationDateRange(request.getStartDate(), request.getEndDate())
-                    .withUserId(userContext)
-                    .withCategoryId(request.getCategoryId())
-                    .build();
-
-        Pageable pageable = request.pageable();
-
-        Page<TransactionResponse> pageResponse =
-                transactionRepository.findAll(spec, pageable).map(transactionMapper::toResponse);
-
-        return BaseResponse.ok(BasePaginationResponse.of(pageResponse));
-    }
-
-    private void updateUserBalance(User user, BigDecimal amount, TransactionType type, boolean isReverting) {
-        BigDecimal adjustment = (TransactionType.INCOME.equals(type)) ? amount : amount.negate();
-
-        if (isReverting) {
-            adjustment = adjustment.negate();
-        }
-
-        BigDecimal newBalance = user.getCurrentBalance().add(adjustment);
-
-        user.setCurrentBalance(newBalance);
-        userRepository.save(user);
-    }
+    user.setCurrentBalance(newBalance);
+    userRepository.save(user);
+  }
 }

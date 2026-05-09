@@ -6,37 +6,37 @@ import com.financeai.finance_management.dto.request.AiQueryRequest;
 import com.financeai.finance_management.dto.response.AiChatResponse;
 import com.financeai.finance_management.dto.response.AiQueryResponse;
 import com.financeai.finance_management.dto.response.BaseResponse;
+import com.financeai.finance_management.dto.response.SpendingTrendResponse;
 import com.financeai.finance_management.dto.response.TransactionResponse;
 import com.financeai.finance_management.service.IAiService;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import com.financeai.finance_management.dto.response.SpendingTrendResponse;
 @RestController
 @RequestMapping("/api/v1/ai")
 @RequiredArgsConstructor
 public class AiController {
 
-    private final IAiService aiService;
+  private final IAiService aiService;
 
-    @PostMapping("/parse-and-save")
-    public BaseResponse<List<TransactionResponse>> parseAndSave(@RequestBody AiParseRequest request) {
-        return aiService.parseAndSaveTransaction(request);
-    }
+  @PostMapping("/parse-and-save")
+  public BaseResponse<List<TransactionResponse>> parseAndSave(@RequestBody AiParseRequest request) {
+    return aiService.parseAndSaveTransaction(request);
+  }
 
-    @PostMapping("/query")
-    public BaseResponse<AiQueryResponse> query(@RequestBody AiQueryRequest request) {
-        return aiService.query(request);
-    }
+  @PostMapping("/query")
+  public BaseResponse<AiQueryResponse> query(@RequestBody AiQueryRequest request) {
+    return aiService.query(request);
+  }
 
-    @PostMapping("/chat")
-    public BaseResponse<AiChatResponse> chat(@RequestBody AiChatRequest request) {
-        return aiService.chat(request);
-    }
+  @PostMapping("/chat")
+  public BaseResponse<AiChatResponse> chat(@RequestBody AiChatRequest request) {
+    return aiService.chat(request);
+  }
 
-    @GetMapping("/trend")
-    public BaseResponse<SpendingTrendResponse> analyzeTrend() {
-        return aiService.analyzeSpendingTrend();
-    }
+  @GetMapping("/trend")
+  public BaseResponse<SpendingTrendResponse> analyzeTrend() {
+    return aiService.analyzeSpendingTrend();
+  }
 }

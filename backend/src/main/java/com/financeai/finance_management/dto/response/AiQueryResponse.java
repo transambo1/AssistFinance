@@ -6,7 +6,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class AiQueryResponse {
-    private String answer;
-    private String intent;
-    private Object data;
+  private String answer;
+  private String intent;
+  private Object data;
 }

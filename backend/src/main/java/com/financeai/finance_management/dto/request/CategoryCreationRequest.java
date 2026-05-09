@@ -5,8 +5,8 @@ import lombok.Data;
 
 @Data
 public class CategoryCreationRequest {
-    private String name;
-    private CategoryType type;
-    private String icon;
-    private String color;
+  private String name;
+  private CategoryType type;
+  private String icon;
+  private String color;
 }
