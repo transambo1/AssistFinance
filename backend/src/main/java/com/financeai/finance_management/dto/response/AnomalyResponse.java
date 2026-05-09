@@ -6,10 +6,12 @@ import lombok.Data;
 @Data
 public class AnomalyResponse {
 
-    private boolean anomaly;
-    @JsonProperty("z_score")
-    private double zScore;
-    private double mean;
-    private double std;
-    private String anomalyMessage;
+  private boolean anomaly;
+
+  @JsonProperty("z_score")
+  private double zScore;
+
+  private double mean;
+  private double std;
+  private String anomalyMessage;
 }

@@ -8,21 +8,22 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 
-@Mapper(config = MapperConfig.class, uses = {DateTimeEpochConverter.class})
+@Mapper(
+    config = MapperConfig.class,
+    uses = {DateTimeEpochConverter.class})
 public interface TransactionMapper {
 
-    @Mapping(target = "user",  ignore = true)
-    @Mapping(target = "category",  ignore = true)
-    void partialUpdate(@MappingTarget Transaction transaction, UpsertTransactionRequest request);
+  @Mapping(target = "user", ignore = true)
+  @Mapping(target = "category", ignore = true)
+  void partialUpdate(@MappingTarget Transaction transaction, UpsertTransactionRequest request);
 
-    @Mapping(target = "transactionDate", source = "transactionDate")
-    @Mapping(target = "userId", source = "user.id")
-    @Mapping(target = "categoryId", source = "category.id")
-    @Mapping(target = "categoryIcon", source = "category.icon")
-    @Mapping(target = "categoryName", source = "category.name")
-    @Mapping(target = "categoryColor", source = "category.color")
-    @Mapping(target = "anomaly", source = "anomaly")
-    @Mapping(target = "anomalyMessage", source = "anomalyMessage")
-    TransactionResponse toResponse(Transaction transaction);
-
+  @Mapping(target = "transactionDate", source = "transactionDate")
+  @Mapping(target = "userId", source = "user.id")
+  @Mapping(target = "categoryId", source = "category.id")
+  @Mapping(target = "categoryIcon", source = "category.icon")
+  @Mapping(target = "categoryName", source = "category.name")
+  @Mapping(target = "categoryColor", source = "category.color")
+  @Mapping(target = "anomaly", source = "anomaly")
+  @Mapping(target = "anomalyMessage", source = "anomalyMessage")
+  TransactionResponse toResponse(Transaction transaction);
 }

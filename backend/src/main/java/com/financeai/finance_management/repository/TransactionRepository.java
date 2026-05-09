@@ -1,7 +1,5 @@
 package com.financeai.finance_management.repository;
 
-import com.financeai.finance_management.dto.request.AnomalyRequest;
-import com.financeai.finance_management.dto.response.AnomalyResponse;
 import com.financeai.finance_management.entity.Transaction;
 import com.financeai.finance_management.enums.TransactionType;
 import java.math.BigDecimal;
@@ -98,7 +96,9 @@ public interface TransactionRepository
 
   List<Transaction> findByUserIdAndTypeAndTransactionDateBetween(
       String userId, TransactionType transactionType, long startTimestamp, long endTimestamp);
-    @Query("""
+
+  @Query(
+"""
     SELECT t.category.name, SUM(t.amount)
     FROM Transaction t
     WHERE t.user.id = :userId
@@ -106,11 +106,10 @@ public interface TransactionRepository
       AND t.deletedAt IS NULL
     GROUP BY t.category.name
 """)
-    List<Object[]> getExpenseByCategory(
-            @Param("userId") String userId
-    );
+  List<Object[]> getExpenseByCategory(@Param("userId") String userId);
 
-    @Query("""
+  @Query(
+"""
     SELECT t
     FROM Transaction t
     WHERE t.user.id = :userId
@@ -119,10 +118,10 @@ public interface TransactionRepository
       AND FUNCTION('DATE', FUNCTION('FROM_UNIXTIME', t.transactionDate / 1000))
           = CURRENT_DATE
 """)
-    List<Transaction> findTodayAnomalies(
-            @Param("userId") String userId
-    );
-    @Query("""
+  List<Transaction> findTodayAnomalies(@Param("userId") String userId);
+
+  @Query(
+"""
     SELECT CAST(t.amount as double)
     FROM Transaction t
     WHERE t.user.id = :userId
@@ -131,9 +130,6 @@ public interface TransactionRepository
       AND t.deletedAt IS NULL
       AND t.amount > 0
 """)
-    List<Double> findAmountsByUserAndCategory(
-            @Param("userId") String userId,
-            @Param("categoryId") String categoryId
-    );
-
+  List<Double> findAmountsByUserAndCategory(
+      @Param("userId") String userId, @Param("categoryId") String categoryId);
 }

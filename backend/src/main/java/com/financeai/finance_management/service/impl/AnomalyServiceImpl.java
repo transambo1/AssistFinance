@@ -11,18 +11,13 @@ import org.springframework.web.client.RestTemplate;
 @RequiredArgsConstructor
 public class AnomalyServiceImpl implements AnomalyService {
 
-    private final RestTemplate restTemplate;
+  private final RestTemplate restTemplate;
 
-    private static final String AI_URL =
-            "http://localhost:8001/detect-anomaly";
+  private static final String AI_URL = "http://localhost:8001/detect-anomaly";
 
-    @Override
-    public AnomalyResponse detect(AnomalyRequest request) {
+  @Override
+  public AnomalyResponse detect(AnomalyRequest request) {
 
-        return restTemplate.postForObject(
-                AI_URL,
-                request,
-                AnomalyResponse.class
-        );
-    }
+    return restTemplate.postForObject(AI_URL, request, AnomalyResponse.class);
+  }
 }

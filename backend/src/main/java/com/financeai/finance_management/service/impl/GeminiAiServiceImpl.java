@@ -6,51 +6,38 @@ import com.financeai.finance_management.dto.response.SavingAdviceResponse;
 import com.financeai.finance_management.dto.response.SpendingTrendResponse;
 import com.financeai.finance_management.service.GeminiAiService;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-
-import java.util.List;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 public class GeminiAiServiceImpl implements GeminiAiService {
 
-    private final RestTemplate restTemplate;
+  private final RestTemplate restTemplate;
 
-    @Override
-    public SpendingTrendResponse predictTrend(List<Integer> expenses) {
+  @Override
+  public SpendingTrendResponse predictTrend(List<Integer> expenses) {
 
-        String url = "http://127.0.0.1:8001/predict-spending";
+    String url = "http://127.0.0.1:8001/predict-spending";
 
-        SpendingTrendRequest request =
-                new SpendingTrendRequest();
+    SpendingTrendRequest request = new SpendingTrendRequest();
 
-        request.setExpenses(expenses);
+    request.setExpenses(expenses);
 
-        return restTemplate.postForObject(
-                url,
-                request,
-                SpendingTrendResponse.class
-        );
-    }
-    @Override
-    public SavingAdviceResponse getSavingAdvice(
-            Map<String, Double> categories
-    ) {
+    return restTemplate.postForObject(url, request, SpendingTrendResponse.class);
+  }
 
-        String url = "http://localhost:8001/saving-advice";
+  @Override
+  public SavingAdviceResponse getSavingAdvice(Map<String, Double> categories) {
 
-        SavingAdviceRequest request =
-                new SavingAdviceRequest();
+    String url = "http://localhost:8001/saving-advice";
 
-        request.setCategories(categories);
+    SavingAdviceRequest request = new SavingAdviceRequest();
 
-        return restTemplate.postForObject(
-                url,
-                request,
-                SavingAdviceResponse.class
-        );
-    }
+    request.setCategories(categories);
+
+    return restTemplate.postForObject(url, request, SavingAdviceResponse.class);
+  }
 }
