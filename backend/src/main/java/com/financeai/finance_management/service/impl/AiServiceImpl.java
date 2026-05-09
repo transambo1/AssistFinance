@@ -37,7 +37,7 @@ import java.util.*;
 import java.util.regex.Pattern;
 import java.time.Instant;
 import java.time.YearMonth;
-import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.ArrayList;
@@ -119,6 +119,31 @@ import java.util.stream.Collectors;
 
         SpendingTrendResponse response =
                 geminiAiService.predictTrend(expenses);
+
+        return BaseResponse.ok(response);
+    }
+    @Override
+    public BaseResponse<SavingAdviceResponse> getSavingAdvice() {
+
+        String userId = budgetService.getCurrentUserId();
+
+        List<Object[]> rows =
+                transactionRepository.getExpenseByCategory(userId);
+
+        Map<String, Double> categories = new HashMap<>();
+
+        for (Object[] row : rows) {
+
+            String category = (String) row[0];
+
+            Double amount =
+                    ((Number) row[1]).doubleValue();
+
+            categories.put(category, amount);
+        }
+
+        SavingAdviceResponse response =
+                geminiAiService.getSavingAdvice(categories);
 
         return BaseResponse.ok(response);
     }

@@ -3,16 +3,13 @@ package com.financeai.finance_management.controller;
 import com.financeai.finance_management.dto.request.AiChatRequest;
 import com.financeai.finance_management.dto.request.AiParseRequest;
 import com.financeai.finance_management.dto.request.AiQueryRequest;
-import com.financeai.finance_management.dto.response.AiChatResponse;
-import com.financeai.finance_management.dto.response.AiQueryResponse;
-import com.financeai.finance_management.dto.response.BaseResponse;
-import com.financeai.finance_management.dto.response.TransactionResponse;
+import com.financeai.finance_management.dto.response.*;
 import com.financeai.finance_management.service.IAiService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import com.financeai.finance_management.dto.response.SpendingTrendResponse;
+
 @RestController
 @RequestMapping("/api/v1/ai")
 @RequiredArgsConstructor
@@ -38,5 +35,9 @@ public class AiController {
     @GetMapping("/trend")
     public BaseResponse<SpendingTrendResponse> analyzeTrend() {
         return aiService.analyzeSpendingTrend();
+    }
+    @GetMapping("/saving-advice")
+    public BaseResponse<SavingAdviceResponse> getSavingAdvice() {
+        return aiService.getSavingAdvice();
     }
 }
