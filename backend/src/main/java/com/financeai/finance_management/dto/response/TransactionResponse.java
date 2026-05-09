@@ -21,4 +21,10 @@ private String categoryIcon;
     private String transactionDate;
     private TransactionType type;
     private BigDecimal amount;
+
+    private Boolean anomaly;
+
+    private Double zScore;
+
+    private String anomalyMessage;
 }
