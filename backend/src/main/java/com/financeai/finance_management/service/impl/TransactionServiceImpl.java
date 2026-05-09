@@ -56,8 +56,15 @@ public class TransactionServiceImpl implements ITransactionService {
 
         Category category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new AppException(ErrorCode.DATASOURCE_NOT_FOUND));
-        AnomalyResponse anomalyResponse =
-                detectAnomaly(request, userContext);
+
+        AnomalyResponse anomalyResponse = null;
+
+        if (Boolean.TRUE.equals(request.getIsAuto())) {
+
+            anomalyResponse =
+                    detectAnomaly(request, user.getId());
+
+        }
         Transaction transaction = Transaction.builder()
                 .id(UUID.randomUUID().toString())
                 .user(user)
@@ -76,8 +83,9 @@ public class TransactionServiceImpl implements ITransactionService {
                                 anomalyResponse.isAnomaly()
                 )
                 .anomalyMessage(
-                        anomalyResponse != null
-                                ? anomalyResponse.getAnomalyMessage()
+                        anomalyResponse != null &&
+                                anomalyResponse.isAnomaly()
+                                ? "Chi tiêu bất thường"
                                 : null
                 )
                 .build();
@@ -88,7 +96,14 @@ public class TransactionServiceImpl implements ITransactionService {
         TransactionResponse response =
                 transactionMapper.toResponse(transaction);
 
+        if (anomalyResponse != null) {
+            response.setZScore(
+                    anomalyResponse.getZScore()
+            );
+        }
+
         return BaseResponse.ok(response);
+
     }
 
     @Override
@@ -180,8 +195,9 @@ public class TransactionServiceImpl implements ITransactionService {
                         userId,
                         request.getCategoryId()
                 );
-
+        log.info("OLD AMOUNTS = {}", oldAmounts);
         if(oldAmounts.size() < 5) {
+            log.warn("NOT ENOUGH DATA: {}", oldAmounts.size());
             return null;
         }
 
@@ -192,6 +208,7 @@ public class TransactionServiceImpl implements ITransactionService {
         anomalyRequest.setNewAmount(
                 request.getAmount().doubleValue()
         );
+        log.info("NEW AMOUNT = {}", request.getAmount());
 
         AnomalyResponse response =
                 anomalyService.detect(anomalyRequest);
@@ -203,12 +220,12 @@ public class TransactionServiceImpl implements ITransactionService {
             Amount: {}
             Mean: {}
             Std: {}
-            Z-Score: {}
+           
             """,
                     request.getAmount(),
                     response.getMean(),
-                    response.getStd(),
-                    response.getZScore()
+                    response.getStd()
+
 
             );
         }

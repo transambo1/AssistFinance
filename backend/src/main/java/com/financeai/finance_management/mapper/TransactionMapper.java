@@ -21,6 +21,8 @@ public interface TransactionMapper {
     @Mapping(target = "categoryIcon", source = "category.icon")
     @Mapping(target = "categoryName", source = "category.name")
     @Mapping(target = "categoryColor", source = "category.color")
+    @Mapping(target = "anomaly", source = "anomaly")
+    @Mapping(target = "anomalyMessage", source = "anomalyMessage")
     TransactionResponse toResponse(Transaction transaction);
 
 }
