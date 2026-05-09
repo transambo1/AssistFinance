@@ -180,10 +180,11 @@ public class CategoryServiceImpl implements ICategoryService {
     @Override
     public BaseResponse<String> softDeleteCategory(String id) {
         Category category = findOwnedCategory(id);
-        category.setDeletedAt(Instant.now().toEpochMilli());
+        if (category.getTransactions() == null) {
+            category.setDeletedAt(Instant.now().toEpochMilli());
+        }
         category.deactivate();
         categoryRepository.save(category);
-
         return BaseResponse.ok("Category deleted successfully");
     }
 
