@@ -119,24 +119,21 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
     String encodedPassword = passwordEncoder.encode(request.getPassword());
 
     User newUser =
-        User.builder()
-            .id(
-                String.valueOf(
-                    IdGenerator
-                        .generateRandomId())) // BẮT BUỘC phải có dòng này vì Entity không tự sinh
-            // ID
-            .username(request.getUsername())
-            .password(encodedPassword)
-            .fullName(request.getFullName()) // Khớp với biến fullName trong Entity
-            .email(request.getEmail())
-            .currentBalance(java.math.BigDecimal.ZERO) // Set giá trị mặc định cho an toàn
-            .build();
+            User.builder()
+                    .id(String.valueOf(IdGenerator.generateRandomId()))
+                    .username(request.getUsername())
+                    .password(encodedPassword)
+                    .fullName(request.getFullName())
+                    .email(request.getEmail())
+                    .currentBalance(java.math.BigDecimal.ZERO)
+                    .build();
+
+    newUser.setCreatedAt(Instant.now().toEpochMilli());
 
     User savedUser = userRepository.save(newUser);
     categoryService.createDefaultCategories(savedUser.getId());
 
     String token = generateToken(savedUser);
-    userRepository.save(newUser);
 
     AuthenticationResponse authResponse =
         AuthenticationResponse.builder().token(token).authenticated(true).build();

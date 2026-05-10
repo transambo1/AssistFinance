@@ -1,41 +1,39 @@
-from fastapi import FastAPI
+from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Dict
 import google.generativeai as genai
 import json
 
-app = FastAPI(title="Gemini Finance AI")
+router = APIRouter()
 
 # =========================
 # GEMINI CONFIG
 # =========================
-
-GEMINI_API_KEY = "AIzaSyC16REUTLZVuYzLbTND9Sk4DcKXq9KJP1o"
+GEMINI_API_KEY = "AIzaSyDJRrnzTftVRUENCn5oe_17bWTdyamPPeM"
 
 genai.configure(api_key=GEMINI_API_KEY)
-
 model = genai.GenerativeModel("gemini-2.5-flash")
 
 # =========================
 # DTO
 # =========================
-
 class SpendingTrendRequest(BaseModel):
     expenses: list[int]
 
+
 class SavingAdviceRequest(BaseModel):
     categories: Dict[str, float]
+
 # =========================
 # API
 # =========================
+@router.get("/gemini/health")
+def gemini_health():
+    return {"status": "ok"}
 
-@app.get("/")
-def root():
-    return {"message": "Gemini AI running"}
 
-@app.post("/predict-spending")
+@router.post("/predict-spending")
 def predict_spending(req: SpendingTrendRequest):
-
     prompt = f"""
     Bạn là AI chuyên phân tích tài chính cá nhân.
 
@@ -46,7 +44,6 @@ def predict_spending(req: SpendingTrendRequest):
     2. Dự đoán tháng tiếp theo
     3. Cho biết trend: increasing / decreasing / stable
 
-
     Hãy trả lời hoàn toàn bằng TIẾNG VIỆT.
     Trả JSON:
 
@@ -55,28 +52,26 @@ def predict_spending(req: SpendingTrendRequest):
       "trend": "increasing/decreasing/stable",
       "analysis": "text"
     }}
-    
+
     Chỉ trả JSON.
     """
 
     response = model.generate_content(prompt)
-
     text = response.text.strip()
-
     text = text.replace("```json", "").replace("```", "").strip()
 
     try:
         return json.loads(text)
-    except:
+    except Exception:
         return {
             "prediction": 0,
             "trend": "unknown",
             "analysis": text
         }
 
-@app.post("/saving-advice")
-def saving_advice(req: SavingAdviceRequest):
 
+@router.post("/saving-advice")
+def saving_advice(req: SavingAdviceRequest):
     prompt = f"""
     Bạn là AI chuyên tư vấn tài chính cá nhân.
 
@@ -102,20 +97,12 @@ def saving_advice(req: SavingAdviceRequest):
     """
 
     response = model.generate_content(prompt)
-
     text = response.text.strip()
-
     text = text.replace("```json", "").replace("```", "").strip()
-
-    print("GEMINI RESPONSE:")
-    print(text)
 
     try:
         return json.loads(text)
-
-    except Exception as e:
-        print("JSON ERROR:", e)
-
+    except Exception:
         return {
             "analysis": text,
             "tips": []

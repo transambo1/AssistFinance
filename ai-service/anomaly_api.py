@@ -1,35 +1,49 @@
-from fastapi import FastAPI
+from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import List
 import numpy as np
 
-app = FastAPI()
+router = APIRouter()
 
 class TransactionRequest(BaseModel):
     amounts: List[float]
     newAmount: float
 
-@app.post("/detect-anomaly")
+
+@router.get("/anomaly/health")
+def anomaly_health():
+    return {"status": "ok"}
+
+
+@router.post("/detect-anomaly")
 def detect_anomaly(data: TransactionRequest):
+    amounts = np.array(data.amounts, dtype=float)
 
-    amounts = np.array(data.amounts)
+    if amounts.size == 0:
+        return {
+            "isAnomaly": False,
+            "zScore": 0.0,
+            "mean": 0.0,
+            "std": 0.0
+        }
 
-    mean = np.mean(amounts)
-    std = np.std(amounts)
+    mean = float(np.mean(amounts))
+    std = float(np.std(amounts))
 
     if std == 0:
         return {
-            "anomaly": False,
-            "z_score": 0
+            "isAnomaly": False,
+            "zScore": 0.0,
+            "mean": mean,
+            "std": std
         }
 
-    z_score = (data.newAmount - mean) / std
-
+    z_score = float((data.newAmount - mean) / std)
     is_anomaly = abs(z_score) > 2.5
 
     return {
-        "anomaly": bool(is_anomaly),
-        "z_score": float(z_score),
-        "mean": float(mean),
-        "std": float(std)
+        "isAnomaly": bool(is_anomaly),
+        "zScore": z_score,
+        "mean": mean,
+        "std": std
     }
