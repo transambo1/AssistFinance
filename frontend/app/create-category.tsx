@@ -51,7 +51,7 @@ export default function CreateCategoryScreen() {
         onError: (error: any) => {
             Alert.alert('Lỗi', error?.message || 'Không thể tạo danh mục.');
         }
-    });
+    })
 
     const handleSave = () => {
         if (!name.trim()) {

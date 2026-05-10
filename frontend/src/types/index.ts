@@ -65,7 +65,7 @@ export interface Budget {
     name: string;
     targetAmount: number;
     currentAmount: number;
-    endDate: number | string;
+    endDate:  string;
     type: BudgetType;
     categoryId?: string;
     categoryIcon: string;
@@ -78,7 +78,8 @@ export interface Budget {
 export interface Message {
     id: string;
     sender: 'user' | 'ai';
-    text: string;
+    text?: string;        // Thêm dấu ? để không bắt buộc phải có text
+    imageUri?: string;
     actionType?: string;
     transactionData?: any;
 }

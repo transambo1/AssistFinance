@@ -1,6 +1,6 @@
 import React, { useRef, useMemo, useState } from 'react';
 import {
-    View, Text, StyleSheet, TouchableOpacity, Image, ScrollView,
+    View, Text, StyleSheet, TouchableOpacity, ScrollView,
     SafeAreaView, Alert, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Platform
 } from 'react-native';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
@@ -8,7 +8,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/src/context/ThemeContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { transactionService } from '@/src/api/transactionService';
-import { Transaction } from '@/src/types/index';
+import { categoryService } from '@/src/api/categoryService'; // Import categoryService
+import { Transaction, Category } from '@/src/types/index'; // Import Category
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 
@@ -23,34 +24,52 @@ export default function TransactionDetailScreen() {
     const [isEditModalVisible, setEditModalVisible] = useState(false);
     const [editAmount, setEditAmount] = useState('');
     const [editNote, setEditNote] = useState('');
-    const [editType, setEditType] = useState('');
+    const [editType, setEditType] = useState<'EXPENSE' | 'INCOME'>('EXPENSE');
+    const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
 
-    // 1. LẤY DỮ LIỆU
+    // 1. LẤY DỮ LIỆU GIAO DỊCH HIỆN TẠI
     const { data: response, isLoading } = useQuery({
         queryKey: ['transactions'],
         queryFn: () => transactionService.getAll(),
     });
 
     const transaction = useMemo(() => {
-        const allTransactions = response?.data?.data || [];
+        if (!response) return undefined;
+        const payload = response?.data?.data || response?.data || response;
+        const allTransactions = Array.isArray(payload) ? payload : (payload?.data || []);
         return allTransactions.find((t: Transaction) => t.id === id);
     }, [response, id]);
+
+    // 2. LẤY DANH SÁCH DANH MỤC (Dựa theo loại editType đang chọn)
+    const {
+        data: categoriesData,
+        isLoading: isCategoriesLoading
+    } = useQuery({
+        queryKey: ['categories', editType],
+        queryFn: () => categoryService.getAll({ type: editType }),
+        enabled: isEditModalVisible, // Chỉ gọi API khi Modal đang mở
+    });
+
+    const categories: Category[] = (categoriesData as any)?.data?.data || [];
 
     // --- MỞ MODAL VÀ ĐỔ DỮ LIỆU CŨ ---
     const openEditModal = () => {
         if (transaction) {
-            setEditAmount(transaction.amount.toLocaleString('vi-VN'));
+            setEditAmount(transaction.amount.toString()); // Lưu số thuần, không format
             setEditNote(transaction.note || '');
-            setEditType(transaction.type);
+            setEditType(transaction.type as 'EXPENSE' | 'INCOME');
+            setSelectedCategoryId(transaction.categoryId || null); // Load danh mục cũ
             setEditModalVisible(true);
         }
     };
 
-    // 2. LOGIC CẬP NHẬT (Gửi PUT tới Backend)
+    // 3. LOGIC CẬP NHẬT (Gửi PUT tới Backend)
     const updateMutation = useMutation({
         mutationFn: (updatedData: any) => transactionService.update(id as string, updatedData),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['transactions'] });
+            queryClient.invalidateQueries({ queryKey: ['userProfile'] }); // Cập nhật số dư ở Dashboard
+            queryClient.invalidateQueries({ queryKey: ['budgets'] }); // Cập nhật ngân sách nếu có
             Alert.alert('Thành công', 'Đã cập nhật giao dịch.');
             setEditModalVisible(false);
         },
@@ -60,9 +79,10 @@ export default function TransactionDetailScreen() {
     });
 
     const handleSaveUpdate = () => {
-        const amountNum = parseFloat(editAmount);
+        const cleanAmountStr = editAmount.replace(/[^0-9]/g, '');
+        const amountNum = Number(cleanAmountStr);
 
-        if (!editAmount || isNaN(amountNum) || amountNum <= 0) {
+        if (!cleanAmountStr || isNaN(amountNum) || amountNum <= 0) {
             Alert.alert('Lỗi', 'Vui lòng nhập số tiền hợp lệ.');
             return;
         }
@@ -70,21 +90,27 @@ export default function TransactionDetailScreen() {
             Alert.alert('Giới hạn', 'Số tiền không được vượt quá 1 tỷ VND.');
             return;
         }
+        if (!selectedCategoryId) {
+            Alert.alert('Thông báo', 'Vui lòng chọn một danh mục.');
+            return;
+        }
 
         updateMutation.mutate({
-            categoryId: transaction?.categoryId,
+            categoryId: selectedCategoryId, // Gửi danh mục mới
             amount: amountNum,
-            type: transaction?.type,
-            note: editNote,
+            type: editType, // Gửi loại mới
+            note: editNote.trim(),
             isAuto: transaction?.isAutoGenerated || false
         });
     };
 
-    // 3. LOGIC XÓA (Gửi DELETE tới Backend)
+    // 4. LOGIC XÓA (Gửi DELETE tới Backend)
     const deleteMutation = useMutation({
         mutationFn: () => transactionService.delete(id as string),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['transactions'] });
+            queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+            queryClient.invalidateQueries({ queryKey: ['budgets'] });
             Alert.alert('Thành công', 'Đã xóa giao dịch.');
             router.back();
         },
@@ -166,92 +192,107 @@ export default function TransactionDetailScreen() {
                 </TouchableOpacity>
             </View>
 
-            {/* --- MODAL CHỈNH SỬA --- */}
+            {/* --- MODAL CHỈNH SỬA (CẬP NHẬT CÓ PHẦN CHỌN DANH MỤC) --- */}
             <Modal visible={isEditModalVisible} animationType="slide" transparent={true}>
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+                <View style={styles.modalOverlay}>
+                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalContent}>
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>Sửa giao dịch</Text>
                             <TouchableOpacity onPress={() => setEditModalVisible(false)}>
-                                <MaterialIcons name="close" size={24} color={colors.text} />
+                                <MaterialIcons name="close" size={28} color="#1a237e" />
                             </TouchableOpacity>
                         </View>
 
-                        <Text style={styles.inputLabel}>Số tiền (Không vượt hơn 1 tỷ)</Text>
-                        <TextInput
-                            style={[styles.input, { color: colors.text, borderColor: colors.divider }]}
-                            keyboardType="numeric"
-                            value={editAmount.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
-                            onChangeText={(text) => {
-                                // Loại bỏ tất cả ký tự không phải số trước khi lưu vào state
-                                const cleanNumber = text.replace(/[^0-9]/g, "");
-                                if (Number(cleanNumber) <= 1000000000) {
-                                    setEditAmount(cleanNumber);
-                                }
-                            }}
-                            placeholder="Nhập số tiền..."
-                        />
+                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+                            
+                            {/* 1. NÚT CHỌN LOẠI */}
+                            <View style={styles.typeSelector}>
+                                <TouchableOpacity
+                                    style={[styles.typeBtn, editType === 'EXPENSE' && styles.typeBtnActiveExpense]}
+                                    onPress={() => {
+                                        if (editType !== 'EXPENSE') {
+                                            setEditType('EXPENSE');
+                                            setSelectedCategoryId(null); // Reset danh mục khi đổi loại
+                                        }
+                                    }}
+                                >
+                                    <Text style={[styles.typeText, editType === 'EXPENSE' && styles.typeTextActive]}>Chi tiêu</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.typeBtn, editType === 'INCOME' && styles.typeBtnActiveIncome]}
+                                    onPress={() => {
+                                        if (editType !== 'INCOME') {
+                                            setEditType('INCOME');
+                                            setSelectedCategoryId(null); // Reset danh mục khi đổi loại
+                                        }
+                                    }}
+                                >
+                                    <Text style={[styles.typeText, editType === 'INCOME' && styles.typeTextActive]}>Thu nhập</Text>
+                                </TouchableOpacity>
+                            </View>
 
-                        <Text style={styles.inputLabel}>Ghi chú</Text>
-                        <TextInput
-                            style={[styles.input, { color: colors.text, borderColor: colors.divider, height: 80 }]}
-                            multiline
-                            value={editNote}
-                            onChangeText={setEditNote}
-                            placeholder="Thêm ghi chú..."
-                        />
-                        <Text style={styles.inputLabel}>Loại giao dịch</Text>
-                        <View style={styles.segmentedControl}>
-                            {/* Nút Thu Nhập */}
+                            {/* 2. NHẬP SỐ TIỀN */}
+                            <Text style={styles.inputLabel}>Số tiền (Không vượt hơn 1 tỷ)</Text>
+                            <TextInput
+                                style={[styles.input, { color: colors.text, borderColor: colors.divider }]}
+                                keyboardType="numeric"
+                                value={editAmount ? Number(editAmount).toLocaleString('vi-VN') : ''}
+                                onChangeText={(text) => {
+                                    const cleanNumber = text.replace(/[^0-9]/g, "");
+                                    if (Number(cleanNumber) <= 1000000000) {
+                                        setEditAmount(cleanNumber);
+                                    }
+                                }}
+                                placeholder="Nhập số tiền..."
+                            />
+
+                            {/* 3. CHỌN DANH MỤC */}
+                            <Text style={styles.inputLabel}>Danh mục</Text>
+                            {isCategoriesLoading ? (
+                                <ActivityIndicator size="small" color="#1a237e" style={{ marginVertical: 10 }} />
+                            ) : categories.length === 0 ? (
+                                <Text style={{ color: '#767683', fontStyle: 'italic', marginBottom: 16 }}>Chưa có danh mục nào cho loại này.</Text>
+                            ) : (
+                                <View style={styles.categoryGrid}>
+                                    {categories.map((cat) => (
+                                        <TouchableOpacity
+                                            key={cat.id}
+                                            style={[
+                                                styles.categoryItem,
+                                                selectedCategoryId === cat.id && { borderColor: cat.color, backgroundColor: cat.color + '10' }
+                                            ]}
+                                            onPress={() => setSelectedCategoryId(cat.id)}
+                                        >
+                                            <View style={[styles.iconCircle, { backgroundColor: cat.color + '40' }]}>
+                                                <MaterialIcons name={cat.icon as any} size={24} color={cat.color} />
+                                            </View>
+                                            <Text style={styles.categoryText} numberOfLines={1}>{cat.name}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            )}
+
+                            {/* 4. GHI CHÚ */}
+                            <Text style={styles.inputLabel}>Ghi chú</Text>
+                            <TextInput
+                                style={[styles.input, { color: colors.text, borderColor: colors.divider, height: 80 }]}
+                                multiline
+                                value={editNote}
+                                onChangeText={setEditNote}
+                                placeholder="Thêm ghi chú..."
+                            />
+
+                            {/* 5. NÚT LƯU */}
                             <TouchableOpacity
-                                style={[
-                                    styles.segmentBtn,
-                                    editType === 'INCOME' && { backgroundColor: '#4CAF50', borderColor: '#4CAF50' }
-                                ]}
-                                onPress={() => setEditType('INCOME')} // Nhấn vào là chuyển hẳn sang INCOME
-                                activeOpacity={0.8}
+                                style={[styles.saveBtn, { opacity: updateMutation.isPending ? 0.7 : 1 }]}
+                                onPress={handleSaveUpdate}
+                                disabled={updateMutation.isPending}
                             >
-                                <MaterialIcons
-                                    name="add-circle-outline"
-                                    size={20}
-                                    color={editType === 'INCOME' ? '#fff' : '#4CAF50'}
-                                />
-                                <Text style={[
-                                    styles.segmentText,
-                                    { color: editType === 'INCOME' ? '#fff' : '#4CAF50' }
-                                ]}> Thu nhập</Text>
+                                {updateMutation.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Lưu thay đổi</Text>}
                             </TouchableOpacity>
-
-                            {/* Nút Chi Tiêu */}
-                            <TouchableOpacity
-                                style={[
-                                    styles.segmentBtn,
-                                    editType === 'EXPENSE' && { backgroundColor: '#F44336', borderColor: '#F44336' }
-                                ]}
-                                onPress={() => setEditType('EXPENSE')} // Nhấn vào là chuyển hẳn sang EXPENSE
-                                activeOpacity={0.8}
-                            >
-                                <MaterialIcons
-                                    name="remove-circle-outline"
-                                    size={20}
-                                    color={editType === 'EXPENSE' ? '#fff' : '#F44336'}
-                                />
-                                <Text style={[
-                                    styles.segmentText,
-                                    { color: editType === 'EXPENSE' ? '#fff' : '#F44336' }
-                                ]}> Chi tiêu</Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        <TouchableOpacity
-                            style={[styles.saveBtn, { opacity: updateMutation.isPending ? 0.7 : 1 }]}
-                            onPress={handleSaveUpdate}
-                            disabled={updateMutation.isPending}
-                        >
-                            {updateMutation.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Lưu thay đổi</Text>}
-                        </TouchableOpacity>
-                    </View>
-                </KeyboardAvoidingView>
+                        </ScrollView>
+                    </KeyboardAvoidingView>
+                </View>
             </Modal>
 
             {/* --- BIÊN LAI ẨN --- */}
@@ -313,14 +354,27 @@ const styles = StyleSheet.create({
 
     // --- STYLE MODAL ---
     modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
-    modalContent: { borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingBottom: 40 },
-    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-    modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#1a237e' },
-    inputLabel: { fontSize: 14, fontWeight: '700', color: '#9E9E9E', marginBottom: 8, marginTop: 12 },
-    input: { borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 16 },
-    saveBtn: { backgroundColor: '#1a237e', height: 56, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
+    modalContent: { backgroundColor: '#fff', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingTop: 32, maxHeight: '85%' },
+    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+    modalTitle: { fontSize: 22, fontWeight: 'bold', color: '#1a237e' },
+    inputLabel: { fontSize: 14, fontWeight: '700', color: '#9E9E9E', marginBottom: 12, marginTop: 20 },
+    input: { borderWidth: 1, borderRadius: 16, padding: 16, fontSize: 16 },
+    saveBtn: { backgroundColor: '#1a237e', height: 56, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginTop: 32 },
     saveBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
 
+    // --- STYLES MỚI CHO PHẦN CHỌN LOẠI & DANH MỤC TRONG MODAL ---
+    typeSelector: { flexDirection: 'row', backgroundColor: '#f5f2fb', borderRadius: 16, padding: 4, marginTop: 10 },
+    typeBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 12 },
+    typeBtnActiveExpense: { backgroundColor: '#ff635f' },
+    typeBtnActiveIncome: { backgroundColor: '#1b6d24' },
+    typeText: { fontSize: 15, fontWeight: 'bold', color: '#767683' },
+    typeTextActive: { color: '#ffffff' },
+    categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, width: '100%' },
+    categoryItem: { width: '30%', aspectRatio: 1, borderRadius: 20, borderWidth: 1, borderColor: '#f5f2fb', backgroundColor: '#f5f2fb', alignItems: 'center', justifyContent: 'center', gap: 8 },
+    iconCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+    categoryText: { fontSize: 12, fontWeight: '600', color: '#454652', textAlign: 'center' },
+
+    // --- STYLES CHO BIÊN LAI ---
     hiddenShotContainer: { position: 'absolute', left: -1000, width: 400, backgroundColor: '#FFF', padding: 40, alignItems: 'center' },
     shotBrand: { fontSize: 32, fontWeight: 'bold', color: '#1a237e', letterSpacing: 3, marginBottom: 20 },
     shotDivider: { width: '100%', height: 1, backgroundColor: '#E0E0E0', marginBottom: 30 },
@@ -330,45 +384,4 @@ const styles = StyleSheet.create({
     shotRowLabel: { fontSize: 18, color: '#000' },
     shotRowValue: { fontSize: 18, fontWeight: 'bold', color: '#000' },
     shotFooter: { marginTop: 60, fontSize: 14, color: '#BDBDBD' },
-    currencyInputContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderRadius: 12,
-        paddingHorizontal: 12,
-        height: 56,
-        backgroundColor: 'transparent',
-    },
-    inputRaw: {
-        flex: 1,
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
-    currencyText: {
-        fontSize: 16,
-        fontWeight: '700',
-        marginLeft: 8,
-    },
-    segmentedControl: {
-        flexDirection: 'row',
-        gap: 12, // Khoảng cách giữa 2 nút
-        marginTop: 8,
-        marginBottom: 16,
-    },
-    segmentBtn: {
-        flex: 1, // Để 2 nút dài bằng nhau
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: 48,
-        borderRadius: 12,
-        borderWidth: 1.5,
-        borderColor: '#E0E0E0', // Màu viền khi chưa chọn
-        backgroundColor: 'transparent',
-    },
-    segmentText: {
-        fontSize: 15,
-        fontWeight: 'bold',
-        marginLeft: 4,
-    },
 });
