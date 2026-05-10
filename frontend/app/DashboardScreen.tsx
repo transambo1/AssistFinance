@@ -12,6 +12,9 @@ import {
 import { MaterialIcons, FontAwesome5, Feather } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
+// Import thư viện biểu đồ tròn
+import { PieChart } from 'react-native-gifted-charts'; 
+
 import { dashboardService } from '../src/api/dashboardService';
 import { useTheme } from '../src/context/ThemeContext';
 import { formatMoney } from '../src/utils/formatters';
@@ -28,13 +31,12 @@ interface DashboardData {
     currentBalance?: number;
     totalExpense?: number;   
     totalIncome?: number;    
-    expenseChart?: ChartDataPoint[]; // Mảng dữ liệu chi tiêu
-    incomeChart?: ChartDataPoint[];  // Mảng dữ liệu thu nhập
-    chartData?: ChartDataPoint[];    // Mảng fallback nếu BE chưa tách
+    expenseChart?: ChartDataPoint[];
+    incomeChart?: ChartDataPoint[];  
+    chartData?: ChartDataPoint[];    
     aiAnalysis: string;
 }
 
-// Hàm rút gọn số tiền cực lớn
 const formatShortMoney = (num: number) => {
     if (num === 0) return '0';
     const absNum = Math.abs(num);
@@ -47,6 +49,21 @@ const formatShortMoney = (num: number) => {
     return sign + absNum.toString();
 };
 
+// --- MOCK DATA CHO PIE CHART ---
+const mockPieExpense = [
+    { value: 45, color: '#FF8A65', text: '45%', label: 'Ăn uống' },
+    { value: 22, color: '#F48FB1', text: '22%', label: 'Người thân' },
+    { value: 20, color: '#CE93D8', text: '20%', label: 'Chưa phân loại' },
+    { value: 7,  color: '#EF9A9A', text: '7%',  label: 'Giải trí' },
+    { value: 6,  color: '#80CBC4', text: '6%',  label: 'Hóa đơn' },
+];
+
+const mockPieIncome = [
+    { value: 70, color: '#81C784', text: '70%', label: 'Lương' },
+    { value: 20, color: '#64B5F6', text: '20%', label: 'Thưởng' },
+    { value: 10, color: '#FFD54F', text: '10%', label: 'Khác' },
+];
+
 export default function DashboardScreen() {
     const router = useRouter();
     const { isDark, colors } = useTheme();
@@ -55,6 +72,9 @@ export default function DashboardScreen() {
     const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
     const [isBalanceHidden, setIsBalanceHidden] = useState(false);
     const [activeTab, setActiveTab] = useState<'expense' | 'income'>('expense');
+    
+    // STATE MỚI: Quản lý xem đang hiển thị biểu đồ nào
+    const [chartType, setChartType] = useState<'bar' | 'pie'>('pie');
 
     // --- FETCH DATA ---
     const { data: dashboardData, isLoading, isRefetching, refetch } = useQuery({
@@ -71,10 +91,8 @@ export default function DashboardScreen() {
         },
     });
 
-    // --- LOGIC TÁCH BIỆT DỮ LIỆU BIỂU ĐỒ ---
+    // --- LOGIC TÁCH BIỆT DỮ LIỆU BIỂU ĐỒ CỘT ---
     const { chartItems, maxAmount, totalDisplayAmount } = useMemo(() => {
-        // QUAN TRỌNG: Lấy đúng mảng theo Tab đã chọn
-        // Nếu BE trả về expenseChart và incomeChart riêng thì dùng, không thì mới dùng chartData
         const rawData = activeTab === 'expense' 
             ? (dashboardData?.expenseChart || dashboardData?.chartData || [])
             : (dashboardData?.incomeChart || []); 
@@ -99,15 +117,17 @@ export default function DashboardScreen() {
                 showsVerticalScrollIndicator={false}
                 refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={isDark ? "#FFF" : "#A92759"} />}
             >
-                {/* --- HEADER NỀN HỒNG + SỐ DƯ CANH GIỮA --- */}
+                {/* --- HEADER --- */}
                 <View style={styles.headerBackground}>
                     <View style={styles.headerTop}>
                         <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
                             <MaterialIcons name="arrow-back" size={24} color="#FFF" />
                         </TouchableOpacity>
                         <Text style={styles.headerTitle}>Tình hình thu chi</Text>
-                        <TouchableOpacity style={styles.iconBtn}>
-                            <Feather name="pie-chart" size={22} color="#FFF" />
+                        
+                        {/* NÚT TOGGLE CHUYỂN ĐỔI CHART */}
+                        <TouchableOpacity onPress={() => setChartType(prev => prev === 'bar' ? 'pie' : 'bar')} style={styles.iconBtn}>
+                            <Feather name={chartType === 'bar' ? "pie-chart" : "bar-chart-2"} size={22} color="#FFF" />
                         </TouchableOpacity>
                     </View>
 
@@ -124,11 +144,10 @@ export default function DashboardScreen() {
                     </View>
                 </View>
 
-                {/* --- NỘI DUNG CHÍNH NỀN TRẮNG --- */}
+                {/* --- NỘI DUNG CHÍNH --- */}
                 <View style={styles.contentBody}>
-                    
-                    {/* CHỌN NĂM */}
                     <View style={styles.yearSelector}>
+                        {/* Các nút chọn năm giữ nguyên */}
                         <TouchableOpacity onPress={() => setCurrentYear(y => y - 1)} style={styles.yearBtn}>
                             <MaterialIcons name="chevron-left" size={24} color={colors.text} />
                         </TouchableOpacity>
@@ -141,7 +160,7 @@ export default function DashboardScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    {/* HAI THẺ THU NHẬP / CHI TIÊU */}
+                    {/* HAI THẺ THU NHẬP / CHI TIÊU KHU VỰC KHOANH ĐỎ TRONG HÌNH */}
                     <View style={styles.tabContainer}>
                         <TouchableOpacity 
                             style={[styles.tabBox, activeTab === 'expense' && styles.tabExpenseActive]}
@@ -170,13 +189,45 @@ export default function DashboardScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    {/* BIỂU ĐỒ CỘT */}
+                    {/* KHU VỰC RENDER CHART: KIỂM TRA CHART TYPE */}
                     <View style={styles.chartCard}>
                         {isLoading ? (
                             <ActivityIndicator color="#A92759" size="large" style={{ marginVertical: 50 }} />
+                        ) : chartType === 'pie' ? (
+                            
+                            // ---------------- BIỂU ĐỒ TRÒN (PIE) ----------------
+                            <View style={styles.pieContainer}>
+                                <PieChart
+                                    donut
+                                    innerRadius={70}
+                                    radius={110}
+                                    data={activeTab === 'expense' ? mockPieExpense : mockPieIncome}
+                                    centerLabelComponent={() => (
+                                        <View style={{justifyContent: 'center', alignItems: 'center'}}>
+                                            <Text style={{fontSize: 22, color: colors.text, fontWeight: 'bold'}}>100%</Text>
+                                            <Text style={{fontSize: 12, color: '#9CA3AF'}}>Tổng cộng</Text>
+                                        </View>
+                                    )}
+                                />
+                                
+                                {/* CHÚ THÍCH (LEGEND) CHO PIE CHART */}
+                                <View style={styles.legendContainer}>
+                                    {(activeTab === 'expense' ? mockPieExpense : mockPieIncome).map((item, index) => (
+                                        <View key={index} style={styles.legendItem}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                                <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+                                                <Text style={styles.legendLabel}>{item.label}</Text>
+                                            </View>
+                                            <Text style={styles.legendValue}>{item.text}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            </View>
                         ) : chartItems.length === 0 ? (
                             <Text style={styles.emptyText}>Chưa có dữ liệu mục này</Text>
                         ) : (
+                            
+                            // ---------------- BIỂU ĐỒ CỘT (BAR - CODE CŨ) ----------------
                             <View style={styles.chartLayout}>
                                 <View style={styles.yAxisContainer}>
                                     <View style={styles.yAxisRow}><Text style={styles.yAxisLabel}>{formatShortMoney(maxAmount)}</Text><View style={styles.gridLine} /></View>
@@ -226,6 +277,7 @@ export default function DashboardScreen() {
     );
 }
 
+// --- STYLES ---
 const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: isDark ? '#121212' : '#A92759' },
     container: { flex: 1, backgroundColor: isDark ? '#121212' : '#F9FAFB' },
@@ -249,8 +301,10 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     tabHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
     tabTitle: { fontSize: 13, color: '#6B7280', marginLeft: 6, fontWeight: '600' },
     tabAmount: { fontSize: 19, fontWeight: 'bold', color: colors.text },
-    chartCard: { backgroundColor: colors.surface, borderRadius: 20, paddingVertical: 20, marginBottom: 20, elevation: 2 },
+    chartCard: { backgroundColor: colors.surface, borderRadius: 20, paddingVertical: 20, paddingHorizontal: 10, marginBottom: 20, elevation: 2 },
     emptyText: { textAlign: 'center', color: '#9CA3AF', paddingVertical: 30 },
+    
+    // Bar Chart
     chartLayout: { position: 'relative', height: 220, marginTop: 10 },
     yAxisContainer: { position: 'absolute', top: 30, left: 0, right: 0, height: 150, justifyContent: 'space-between' },
     yAxisRow: { flexDirection: 'row', alignItems: 'flex-end', flex: 1 },
@@ -263,6 +317,15 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     barValueText: { fontSize: 10, color: '#6B7280', fontWeight: 'bold' },
     bar: { width: 26, borderTopLeftRadius: 6, borderTopRightRadius: 6 },
     barLabel: { fontSize: 11, color: '#9CA3AF', marginTop: 8 },
+    
+    // Pie Chart
+    pieContainer: { alignItems: 'center', marginTop: 10 },
+    legendContainer: { width: '100%', marginTop: 24, paddingHorizontal: 10 },
+    legendItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+    legendDot: { width: 12, height: 12, borderRadius: 6, marginRight: 10 },
+    legendLabel: { fontSize: 14, color: colors.text },
+    legendValue: { fontSize: 14, fontWeight: 'bold', color: colors.text },
+
     aiCard: { backgroundColor: isDark ? '#1E1E1E' : '#FFF', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: isDark ? '#333' : '#FCE7F3' },
     aiHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
     aiIconBox: { backgroundColor: '#FCE7F3', width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
