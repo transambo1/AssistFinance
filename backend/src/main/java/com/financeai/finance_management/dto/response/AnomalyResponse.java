@@ -5,13 +5,14 @@ import lombok.Data;
 
 @Data
 public class AnomalyResponse {
-
+  @JsonProperty("isAnomaly")
   private boolean anomaly;
 
-  @JsonProperty("z_score")
+  @JsonProperty("zScore")
   private double zScore;
 
   private double mean;
   private double std;
+
   private String anomalyMessage;
 }
