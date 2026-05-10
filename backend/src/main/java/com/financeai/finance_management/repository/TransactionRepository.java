@@ -1,5 +1,6 @@
 package com.financeai.finance_management.repository;
 
+import com.financeai.finance_management.dto.response.CategorySumProjection;
 import com.financeai.finance_management.entity.Transaction;
 import com.financeai.finance_management.enums.TransactionType;
 import java.math.BigDecimal;
@@ -132,4 +133,12 @@ public interface TransactionRepository
 """)
   List<Double> findAmountsByUserAndCategory(
       @Param("userId") String userId, @Param("categoryId") String categoryId);
+
+  @Query(
+      "SELECT t.category.name as name, SUM(t.amount) as amount, t.category.color as color "
+          + "FROM Transaction t "
+          + "WHERE t.user.id = :userId AND t.type = 'EXPENSE' "
+          + "AND t.transactionDate BETWEEN :start AND :end "
+          + "GROUP BY t.category.name, t.category.color")
+  List<CategorySumProjection> sumAmountByCategory(String userId, Long start, Long end);
 }

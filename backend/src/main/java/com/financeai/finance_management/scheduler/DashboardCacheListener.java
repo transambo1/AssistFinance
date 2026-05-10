@@ -27,15 +27,25 @@ public class DashboardCacheListener {
     if (event.getType() == TransactionType.EXPENSE) {
       int txYear =
           Instant.ofEpochMilli(event.getTransactionDate()).atZone(ZoneId.systemDefault()).getYear();
+      String cacheKey = event.getUserId() + "-" + txYear;
 
-      Cache cache = cacheManager.getCache("dashboardForecast");
-      if (cache != null) {
-        String cacheKey = event.getUserId() + "-" + txYear;
-        cache.evict(cacheKey);
-        log.info("Đã xóa cache cho user {} tại năm {}", event.getUserId(), txYear);
-      }
-      dashboardService.getForecastDashboard(event.getUserId(), txYear);
-      log.info("Đã cập nhật xong cache cho năm: {}", txYear);
+      evictAndReload(event.getUserId(), txYear, cacheKey);
     }
+  }
+
+  private void evictAndReload(String userId, int txYear, String cacheKey) {
+    Cache forecastCache = cacheManager.getCache("dashboardForecast");
+    //    Cache analyticsCache = cacheManager.getCache("dashboardAnalytics");
+
+    if (forecastCache != null) forecastCache.evict(cacheKey);
+    //    if (analyticsCache != null) analyticsCache.evict(cacheKey);
+
+    log.info("Đã xóa cache cho user {} tại năm {}", userId, txYear);
+
+    // Reload lại để lần sau user vào là có sẵn luôn (Warm up cache)
+    dashboardService.getForecastDashboard(userId, txYear);
+    //    dashboardService.getDashboardAnalytics(userId, txYear);
+
+    log.info("Đã cập nhật xong toàn bộ Dashboard cache cho năm: {}", txYear);
   }
 }
