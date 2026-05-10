@@ -9,7 +9,7 @@ router = APIRouter()
 # =========================
 # GEMINI CONFIG
 # =========================
-GEMINI_API_KEY = "AIzaSyDJRrnzTftVRUENCn5oe_17bWTdyamPPeM"
+GEMINI_API_KEY = "your_gemini_api_key_here"
 
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel("gemini-2.5-flash")
