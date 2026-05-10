@@ -9,5 +9,7 @@ public interface GeminiAiService {
 
   SpendingTrendResponse predictTrend(List<Integer> expenses);
 
+  SpendingTrendResponse predictTrendIncome(List<Integer> expenses);
+
   SavingAdviceResponse getSavingAdvice(Map<String, Double> categories);
 }

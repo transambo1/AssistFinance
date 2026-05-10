@@ -30,6 +30,17 @@ public class GeminiAiServiceImpl implements GeminiAiService {
   }
 
   @Override
+  public SpendingTrendResponse predictTrendIncome(List<Integer> expenses) {
+    String url = "http://127.0.0.1:8001/predict_incoming";
+
+    SpendingTrendRequest request = new SpendingTrendRequest();
+
+    request.setExpenses(expenses);
+
+    return restTemplate.postForObject(url, request, SpendingTrendResponse.class);
+  }
+
+  @Override
   public SavingAdviceResponse getSavingAdvice(Map<String, Double> categories) {
 
     String url = "http://localhost:8001/saving-advice";

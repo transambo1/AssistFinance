@@ -10,4 +10,6 @@ public interface IDashboardService {
 
   BaseResponse<DashboardAnalyticsResponse> getDashboardAnalytics(
       String userId, Integer year, Integer month);
+
+  BaseResponse<DashboardForecastResponse> getIncomeForecastDashboard(String userId, Integer year);
 }

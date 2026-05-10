@@ -24,28 +24,39 @@ public class DashboardCacheListener {
   @Async
   @EventListener
   public void handleTransactionChange(TransactionChangedEvent event) {
-    if (event.getType() == TransactionType.EXPENSE) {
-      int txYear =
-          Instant.ofEpochMilli(event.getTransactionDate()).atZone(ZoneId.systemDefault()).getYear();
-      String cacheKey = event.getUserId() + "-" + txYear;
+    int txYear =
+        Instant.ofEpochMilli(event.getTransactionDate()).atZone(ZoneId.systemDefault()).getYear();
 
-      evictAndReload(event.getUserId(), txYear, cacheKey);
-    }
+    evictAndReload(event.getUserId(), txYear, event.getType());
   }
 
-  private void evictAndReload(String userId, int txYear, String cacheKey) {
+  private void evictAndReload(String userId, int txYear, TransactionType type) {
     Cache forecastCache = cacheManager.getCache("dashboardForecast");
-    //    Cache analyticsCache = cacheManager.getCache("dashboardAnalytics");
+    Cache analyticsCache = cacheManager.getCache("dashboardAnalytics");
 
-    if (forecastCache != null) forecastCache.evict(cacheKey);
-    //    if (analyticsCache != null) analyticsCache.evict(cacheKey);
+    String commonSuffix = userId + "-" + txYear;
 
-    log.info("Đã xóa cache cho user {} tại năm {}", userId, txYear);
+    if (forecastCache != null) {
+      if (type == TransactionType.EXPENSE) {
+        forecastCache.evict("expense-" + commonSuffix);
+      } else {
+        forecastCache.evict("income-" + commonSuffix);
+      }
+    }
 
-    // Reload lại để lần sau user vào là có sẵn luôn (Warm up cache)
-    dashboardService.getForecastDashboard(userId, txYear);
-    //    dashboardService.getDashboardAnalytics(userId, txYear);
+    if (analyticsCache != null) {
+      analyticsCache.evict(commonSuffix);
+    }
 
-    log.info("Đã cập nhật xong toàn bộ Dashboard cache cho năm: {}", txYear);
+    log.info("Đã xóa cache {} cho user {} tại năm {}", type, userId, txYear);
+
+    if (type == TransactionType.EXPENSE) {
+      dashboardService.getForecastDashboard(userId, txYear);
+      //            dashboardService.getDashboardAnalytics(userId, txYear);
+    } else {
+      dashboardService.getIncomeForecastDashboard(userId, txYear);
+    }
+
+    log.info("Đã cập nhật xong toàn bộ Dashboard cache sau khi thay đổi {}", type);
   }
 }

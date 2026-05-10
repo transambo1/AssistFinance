@@ -34,71 +34,12 @@ public class DashboardServiceImpl implements IDashboardService {
 
   @Override
   @Transactional(readOnly = true)
-  @Cacheable(value = "dashboardForecast", key = "#userId + '-' + #year")
+  @Cacheable(value = "dashboardForecast", key = "'expense-' + #userId + '-' + #year")
   public BaseResponse<DashboardForecastResponse> getForecastDashboard(String userId, Integer year) {
     User user = userRepository.findById(userId).orElseThrow();
-    Map<YearMonth, BigDecimal> history = getMonthlyExpensesByYear(userId, year);
-
-    boolean hasData =
-        history.values().stream().anyMatch(amount -> amount.compareTo(BigDecimal.ZERO) > 0);
-
-    SpendingTrendResponse aiResponse;
-
-    if (!hasData) {
-      aiResponse =
-          SpendingTrendResponse.builder()
-              .prediction(0.0)
-              .trend("stable")
-              .analysis("Chưa có dữ liệu chi tiêu trong năm này để thực hiện phân tích.")
-              .build();
-    } else {
-      List<Integer> expenseValues =
-          history.values().stream().map(BigDecimal::intValue).collect(Collectors.toList());
-      try {
-        aiResponse = geminiAiService.predictTrend(expenseValues);
-      } catch (Exception e) {
-        log.error("AI Service Error: {}", e);
-        aiResponse =
-            SpendingTrendResponse.builder()
-                .prediction(0.0)
-                .trend("unknown")
-                .analysis("Tạm thời không có phân tích từ AI.")
-                .build();
-      }
-    }
-
-    List<DashboardForecastResponse.MonthlyDataPoint> chartData = new ArrayList<>();
-    history.forEach(
-        (month, amount) ->
-            chartData.add(
-                DashboardForecastResponse.MonthlyDataPoint.builder()
-                    .label("TH" + month.getMonthValue())
-                    .amount(amount)
-                    .isForecast(false)
-                    .build()));
-
-    if (year >= YearMonth.now().getYear()) {
-      YearMonth nextMonth =
-          history.keySet().stream().max(YearMonth::compareTo).orElse(YearMonth.now()).plusMonths(1);
-
-      chartData.add(
-          DashboardForecastResponse.MonthlyDataPoint.builder()
-              .label("TH" + nextMonth.getMonthValue())
-              .amount(BigDecimal.valueOf(aiResponse.getPrediction()))
-              .isForecast(true)
-              .build());
-    }
-
-    DashboardForecastResponse response =
-        DashboardForecastResponse.builder()
-            .currency(user.getCurrency())
-            .currentBalance(user.getCurrentBalance())
-            .chartData(chartData)
-            .aiAnalysis(aiResponse.getAnalysis())
-            .percentageChange(calculateGrowthSingle(history, aiResponse.getPrediction()))
-            .build();
-
-    return BaseResponse.ok(response);
+    Map<YearMonth, BigDecimal> history =
+        getMonthlyDataByType(userId, year, TransactionType.EXPENSE);
+    return BaseResponse.ok(buildForecastResponse(user, history, year, TransactionType.EXPENSE));
   }
 
   @Override
@@ -133,6 +74,16 @@ public class DashboardServiceImpl implements IDashboardService {
     return BaseResponse.ok(response);
   }
 
+  @Override
+  @Transactional(readOnly = true)
+  @Cacheable(value = "dashboardForecast", key = "'income-' + #userId + '-' + #year")
+  public BaseResponse<DashboardForecastResponse> getIncomeForecastDashboard(
+      String userId, Integer year) {
+    User user = userRepository.findById(userId).orElseThrow();
+    Map<YearMonth, BigDecimal> history = getMonthlyDataByType(userId, year, TransactionType.INCOME);
+    return BaseResponse.ok(buildForecastResponse(user, history, year, TransactionType.INCOME));
+  }
+
   private String calculateGrowthSingle(Map<YearMonth, BigDecimal> history, Double prediction) {
     if (history.isEmpty() || prediction == 0) return "0%";
 
@@ -141,6 +92,89 @@ public class DashboardServiceImpl implements IDashboardService {
 
     double diff = ((prediction - lastActual.doubleValue()) / lastActual.doubleValue()) * 100;
     return String.format("%s%.0f%% Dự kiến", diff > 0 ? "+" : "", diff);
+  }
+
+  private Map<YearMonth, BigDecimal> getMonthlyDataByType(
+      String userId, int year, TransactionType type) {
+    YearMonth now = YearMonth.now();
+    int endMonth = (year < now.getYear()) ? 12 : (year == now.getYear() ? now.getMonthValue() : 0);
+
+    if (endMonth == 0) return new TreeMap<>();
+
+    long start =
+        YearMonth.of(year, 1)
+            .atDay(1)
+            .atStartOfDay(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli();
+    long end =
+        YearMonth.of(year, endMonth)
+            .atEndOfMonth()
+            .atTime(23, 59, 59)
+            .atZone(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli();
+
+    List<Transaction> transactions =
+        transactionRepository.findByUserIdAndTypeAndTransactionDateBetween(
+            userId, type, start, end);
+
+    Map<YearMonth, BigDecimal> groupedData =
+        transactions.stream()
+            .collect(
+                Collectors.groupingBy(
+                    t ->
+                        YearMonth.from(
+                            Instant.ofEpochMilli(t.getTransactionDate())
+                                .atZone(ZoneId.systemDefault())),
+                    TreeMap::new,
+                    Collectors.reducing(BigDecimal.ZERO, Transaction::getAmount, BigDecimal::add)));
+
+    Map<YearMonth, BigDecimal> fullYearData = new TreeMap<>();
+    for (int i = 1; i <= endMonth; i++) {
+      YearMonth ym = YearMonth.of(year, i);
+      fullYearData.put(ym, groupedData.getOrDefault(ym, BigDecimal.ZERO));
+    }
+    return fullYearData;
+  }
+
+  private DashboardForecastResponse buildForecastResponse(
+      User user, Map<YearMonth, BigDecimal> history, Integer year, TransactionType type) {
+    String typeVN = (type == TransactionType.EXPENSE) ? "chi tiêu" : "thu nhập";
+
+    SpendingTrendResponse aiResponse = getAiPrediction(history, type);
+    if (aiResponse.getPrediction() == 0 && aiResponse.getAnalysis().contains("Không có dữ liệu")) {
+      aiResponse.setAnalysis("Chưa có dữ liệu " + typeVN + " trong năm này.");
+    }
+
+    List<DashboardForecastResponse.MonthlyDataPoint> chartData = new ArrayList<>();
+    history.forEach(
+        (month, amount) ->
+            chartData.add(
+                DashboardForecastResponse.MonthlyDataPoint.builder()
+                    .label("TH" + month.getMonthValue())
+                    .amount(amount)
+                    .isForecast(false)
+                    .build()));
+
+    if (year >= YearMonth.now().getYear()) {
+      YearMonth nextMonth =
+          history.keySet().stream().max(YearMonth::compareTo).orElse(YearMonth.now()).plusMonths(1);
+      chartData.add(
+          DashboardForecastResponse.MonthlyDataPoint.builder()
+              .label("TH" + nextMonth.getMonthValue())
+              .amount(BigDecimal.valueOf(aiResponse.getPrediction()))
+              .isForecast(true)
+              .build());
+    }
+
+    return DashboardForecastResponse.builder()
+        .currency(user.getCurrency())
+        .currentBalance(user.getCurrentBalance())
+        .chartData(chartData)
+        .aiAnalysis(aiResponse.getAnalysis())
+        .percentageChange(calculateGrowthSingle(history, aiResponse.getPrediction()))
+        .build();
   }
 
   private Map<YearMonth, BigDecimal> getMonthlyExpensesByYear(String userId, int year) {
@@ -192,7 +226,8 @@ public class DashboardServiceImpl implements IDashboardService {
     return fullYearData;
   }
 
-  private SpendingTrendResponse getAiPrediction(Map<YearMonth, BigDecimal> history) {
+  private SpendingTrendResponse getAiPrediction(
+      Map<YearMonth, BigDecimal> history, TransactionType type) {
     boolean hasData =
         history.values().stream().anyMatch(amount -> amount.compareTo(BigDecimal.ZERO) > 0);
 
@@ -204,7 +239,11 @@ public class DashboardServiceImpl implements IDashboardService {
         history.values().stream().map(BigDecimal::intValue).collect(Collectors.toList());
 
     try {
-      return geminiAiService.predictTrend(expenseValues);
+      if (type == TransactionType.EXPENSE) {
+        return geminiAiService.predictTrend(expenseValues);
+      } else {
+        return geminiAiService.predictTrendIncome(expenseValues);
+      }
     } catch (HttpServerErrorException e) {
       log.error("AI Server (Python) bị lỗi 500: {}", e);
       return SpendingTrendResponse.builder()

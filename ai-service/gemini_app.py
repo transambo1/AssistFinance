@@ -1,18 +1,19 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Dict
-import google.generativeai as genai
+from google import genai
 import json
+import os
+from dotenv import load_dotenv
 
 router = APIRouter()
 
 # =========================
 # GEMINI CONFIG
 # =========================
-GEMINI_API_KEY = "your_gemini_api_key_here"
-
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-2.5-flash")
+# GEMINI CLIENT (NEW SDK)
+# =========================
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 # =========================
 # DTO
@@ -56,7 +57,11 @@ def predict_spending(req: SpendingTrendRequest):
     Chỉ trả JSON.
     """
 
-    response = model.generate_content(prompt)
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt
+    )
+
     text = response.text.strip()
     text = text.replace("```json", "").replace("```", "").strip()
 
@@ -69,6 +74,48 @@ def predict_spending(req: SpendingTrendRequest):
             "analysis": text
         }
 
+
+@router.post("/predict_incoming")
+def predict_incoming(req: SpendingTrendRequest):
+
+    prompt = f"""
+    Bạn là AI chuyên phân tích tài chính cá nhân.
+
+    {req.expenses}
+
+    Hãy:
+    1. Phân tích xu hướng thu nhập
+    2. Dự đoán tháng tiếp theo
+    3. Cho biết trend: increasing / decreasing / stable
+
+    Hãy trả lời hoàn toàn bằng TIẾNG VIỆT.
+    Trả JSON:
+
+    {{
+      "prediction": number,
+      "trend": "increasing/decreasing/stable",
+      "analysis": "text"
+    }}
+
+    Chỉ trả JSON.
+    """
+
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt
+    )
+
+    text = response.text.strip()
+    text = text.replace("```json", "").replace("```", "").strip()
+
+    try:
+        return json.loads(text)
+    except Exception:
+        return {
+            "prediction": 0,
+            "trend": "unknown",
+            "analysis": text
+        }
 
 @router.post("/saving-advice")
 def saving_advice(req: SavingAdviceRequest):
@@ -96,7 +143,11 @@ def saving_advice(req: SavingAdviceRequest):
     }}
     """
 
-    response = model.generate_content(prompt)
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt
+    )
+
     text = response.text.strip()
     text = text.replace("```json", "").replace("```", "").strip()
 

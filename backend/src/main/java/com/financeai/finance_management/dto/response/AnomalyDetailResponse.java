@@ -12,21 +12,21 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AnomalyDetailResponse {
-    private String transactionId;
-    private BigDecimal amount;
-    private String note;
+  private String transactionId;
+  private BigDecimal amount;
+  private String note;
 
-    private String categoryId;
-    private String categoryName;
-    private String categoryColor;
+  private String categoryId;
+  private String categoryName;
+  private String categoryColor;
 
-    private TransactionType type;
-    private String message;
-    private Long transactionDate;
+  private TransactionType type;
+  private String message;
+  private Long transactionDate;
 
-    private String imageUrl;
-    private Boolean isAuto;
+  private String imageUrl;
+  private Boolean isAuto;
 
-    private Long createdAt;
-    private Long updatedAt;
+  private Long createdAt;
+  private Long updatedAt;
 }
