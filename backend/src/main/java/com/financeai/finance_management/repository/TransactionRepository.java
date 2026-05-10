@@ -1,5 +1,6 @@
 package com.financeai.finance_management.repository;
 
+import com.financeai.finance_management.dto.response.CategorySumProjection;
 import com.financeai.finance_management.entity.Transaction;
 import com.financeai.finance_management.enums.TransactionType;
 import java.math.BigDecimal;

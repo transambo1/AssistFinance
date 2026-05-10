@@ -119,14 +119,14 @@ public class AuthenticationServiceImpl implements IAuthenticationService {
     String encodedPassword = passwordEncoder.encode(request.getPassword());
 
     User newUser =
-            User.builder()
-                    .id(String.valueOf(IdGenerator.generateRandomId()))
-                    .username(request.getUsername())
-                    .password(encodedPassword)
-                    .fullName(request.getFullName())
-                    .email(request.getEmail())
-                    .currentBalance(java.math.BigDecimal.ZERO)
-                    .build();
+        User.builder()
+            .id(String.valueOf(IdGenerator.generateRandomId()))
+            .username(request.getUsername())
+            .password(encodedPassword)
+            .fullName(request.getFullName())
+            .email(request.getEmail())
+            .currentBalance(java.math.BigDecimal.ZERO)
+            .build();
 
     newUser.setCreatedAt(Instant.now().toEpochMilli());
 

@@ -1,8 +1,6 @@
 package com.financeai.finance_management.service.impl;
 
-import com.financeai.finance_management.dto.response.BaseResponse;
-import com.financeai.finance_management.dto.response.DashboardForecastResponse;
-import com.financeai.finance_management.dto.response.SpendingTrendResponse;
+import com.financeai.finance_management.dto.response.*;
 import com.financeai.finance_management.entity.Transaction;
 import com.financeai.finance_management.entity.User;
 import com.financeai.finance_management.enums.TransactionType;
@@ -24,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.HttpServerErrorException;
 
 @Slf4j
 @Service
@@ -35,11 +34,7 @@ public class DashboardServiceImpl implements IDashboardService {
 
   @Override
   @Transactional(readOnly = true)
-  @Cacheable(
-      value = "dashboardForecast",
-      key = "#userId + '-' + #year",
-      unless =
-          "#result.data.chartData.isEmpty() || #result.data.chartData.get(#result.data.chartData.size()-1).amount.doubleValue() == 0")
+  @Cacheable(value = "dashboardForecast", key = "#userId + '-' + #year")
   public BaseResponse<DashboardForecastResponse> getForecastDashboard(String userId, Integer year) {
     User user = userRepository.findById(userId).orElseThrow();
     Map<YearMonth, BigDecimal> history = getMonthlyExpensesByYear(userId, year);
@@ -106,6 +101,38 @@ public class DashboardServiceImpl implements IDashboardService {
     return BaseResponse.ok(response);
   }
 
+  @Override
+  @Transactional(readOnly = true)
+  public BaseResponse<DashboardAnalyticsResponse> getDashboardAnalytics(
+      String userId, Integer year, Integer month) {
+
+    List<DashboardAnalyticsResponse.CategoryDataPoint> categoryData =
+        getCategoryDistribution(userId, year, month);
+    BigDecimal totalExpense =
+        categoryData.stream()
+            .map(DashboardAnalyticsResponse.CategoryDataPoint::getAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+    DashboardAnalyticsResponse response =
+        DashboardAnalyticsResponse.builder()
+            //            .forecast(
+            //                DashboardAnalyticsResponse.ForecastSection.builder()
+            //                    .percentageChange(
+            //                        calculateGrowthSingle(monthlyHistory,
+            // aiResponse.getPrediction()))
+            //                    .chartData(buildChartData(monthlyHistory, aiResponse, year))
+            //                    .aiAnalysis(aiResponse.getAnalysis())
+            //                    .build())
+            .categoryDistribution(
+                DashboardAnalyticsResponse.CategorySection.builder()
+                    .totalExpense(totalExpense)
+                    .details(categoryData)
+                    .build())
+            .build();
+
+    return BaseResponse.ok(response);
+  }
+
   private String calculateGrowthSingle(Map<YearMonth, BigDecimal> history, Double prediction) {
     if (history.isEmpty() || prediction == 0) return "0%";
 
@@ -163,5 +190,121 @@ public class DashboardServiceImpl implements IDashboardService {
       fullYearData.put(ym, groupedData.getOrDefault(ym, BigDecimal.ZERO));
     }
     return fullYearData;
+  }
+
+  private SpendingTrendResponse getAiPrediction(Map<YearMonth, BigDecimal> history) {
+    boolean hasData =
+        history.values().stream().anyMatch(amount -> amount.compareTo(BigDecimal.ZERO) > 0);
+
+    if (!hasData) {
+      return SpendingTrendResponse.builder().prediction(0.0).analysis("Không có dữ liệu.").build();
+    }
+
+    List<Integer> expenseValues =
+        history.values().stream().map(BigDecimal::intValue).collect(Collectors.toList());
+
+    try {
+      return geminiAiService.predictTrend(expenseValues);
+    } catch (HttpServerErrorException e) {
+      log.error("AI Server (Python) bị lỗi 500: {}", e);
+      return SpendingTrendResponse.builder()
+          .prediction(0.0)
+          .analysis("Dịch vụ phân tích AI đang bảo trì.")
+          .build();
+    } catch (Exception e) {
+      log.error("Lỗi kết nối AI: {}", e.getMessage());
+      return SpendingTrendResponse.builder()
+          .prediction(0.0)
+          .analysis("Không thể kết nối AI.")
+          .build();
+    }
+  }
+
+  private List<DashboardAnalyticsResponse.CategoryDataPoint> getCategoryDistribution(
+      String userId, Integer year, Integer month) {
+    long start, end;
+
+    if (month != null && month >= 1 && month <= 12) {
+      YearMonth targetMonth = YearMonth.of(year, month);
+      start = targetMonth.atDay(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+      end =
+          targetMonth
+              .atEndOfMonth()
+              .atTime(23, 59, 59)
+              .atZone(ZoneId.systemDefault())
+              .toInstant()
+              .toEpochMilli();
+    } else {
+      YearMonth now = YearMonth.now();
+      int endMonth = (year == now.getYear()) ? now.getMonthValue() : 12;
+      start =
+          YearMonth.of(year, 1)
+              .atDay(1)
+              .atStartOfDay(ZoneId.systemDefault())
+              .toInstant()
+              .toEpochMilli();
+      end =
+          YearMonth.of(year, endMonth)
+              .atEndOfMonth()
+              .atTime(23, 59, 59)
+              .atZone(ZoneId.systemDefault())
+              .toInstant()
+              .toEpochMilli();
+    }
+
+    List<CategorySumProjection> rawData =
+        transactionRepository.sumAmountByCategory(userId, start, end);
+
+    BigDecimal totalYearlyExpense =
+        rawData.stream()
+            .map(CategorySumProjection::getAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+    return rawData.stream()
+        .map(
+            dto -> {
+              double percentage = 0;
+              if (totalYearlyExpense.compareTo(BigDecimal.ZERO) > 0) {
+                percentage =
+                    (dto.getAmount().doubleValue() / totalYearlyExpense.doubleValue()) * 100;
+              }
+
+              return DashboardAnalyticsResponse.CategoryDataPoint.builder()
+                  .categoryName(dto.getName())
+                  .amount(dto.getAmount())
+                  .percentage(Math.round(percentage * 10.0) / 10.0)
+                  .color(dto.getColor())
+                  .build();
+            })
+        .collect(Collectors.toList());
+  }
+
+  private List<DashboardForecastResponse.MonthlyDataPoint> buildChartData(
+      Map<YearMonth, BigDecimal> history, SpendingTrendResponse aiResponse, Integer year) {
+
+    List<DashboardForecastResponse.MonthlyDataPoint> chartData = new ArrayList<>();
+
+    history.forEach(
+        (month, amount) ->
+            chartData.add(
+                DashboardForecastResponse.MonthlyDataPoint.builder()
+                    .label("TH" + month.getMonthValue())
+                    .amount(amount)
+                    .isForecast(false)
+                    .build()));
+
+    if (year >= YearMonth.now().getYear()) {
+      YearMonth nextMonth =
+          history.keySet().stream().max(YearMonth::compareTo).orElse(YearMonth.now()).plusMonths(1);
+
+      chartData.add(
+          DashboardForecastResponse.MonthlyDataPoint.builder()
+              .label("TH" + nextMonth.getMonthValue())
+              .amount(BigDecimal.valueOf(aiResponse.getPrediction()))
+              .isForecast(true)
+              .build());
+    }
+
+    return chartData;
   }
 }

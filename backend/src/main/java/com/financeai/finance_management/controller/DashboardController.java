@@ -1,6 +1,7 @@
 package com.financeai.finance_management.controller;
 
 import com.financeai.finance_management.dto.response.BaseResponse;
+import com.financeai.finance_management.dto.response.DashboardAnalyticsResponse;
 import com.financeai.finance_management.dto.response.DashboardForecastResponse;
 import com.financeai.finance_management.service.IBudgetService;
 import com.financeai.finance_management.service.IDashboardService;
@@ -22,5 +23,14 @@ public class DashboardController {
     String userId = budgetService.getCurrentUserId();
     return ResponseEntity.status(HttpStatus.OK)
         .body(this.dashboardService.getForecastDashboard(userId, monthsToLookBack));
+  }
+
+  @GetMapping("/analytics/chart/{yearToLookBack}")
+  public ResponseEntity<BaseResponse<DashboardAnalyticsResponse>> getDashboardAnalytics(
+      @PathVariable Integer yearToLookBack, @RequestParam Integer monthsToLookBack) {
+    String userId = budgetService.getCurrentUserId();
+    return ResponseEntity.status(HttpStatus.OK)
+        .body(
+            this.dashboardService.getDashboardAnalytics(userId, yearToLookBack, monthsToLookBack));
   }
 }
