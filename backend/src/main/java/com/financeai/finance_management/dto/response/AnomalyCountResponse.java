@@ -10,5 +10,5 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AnomalyCountResponse {
-    private long count;
+  private long count;
 }

@@ -17,12 +17,20 @@ public class DashboardController {
   private final IDashboardService dashboardService;
   private final IBudgetService budgetService;
 
-  @GetMapping("/chart/{monthsToLookBack}")
+  @GetMapping("/expense/chart/{monthsToLookBack}")
   public ResponseEntity<BaseResponse<DashboardForecastResponse>> getForecastDashboard(
       @PathVariable Integer monthsToLookBack) {
     String userId = budgetService.getCurrentUserId();
     return ResponseEntity.status(HttpStatus.OK)
         .body(this.dashboardService.getForecastDashboard(userId, monthsToLookBack));
+  }
+
+  @GetMapping("/income/chart/{monthsToLookBack}")
+  public ResponseEntity<BaseResponse<DashboardForecastResponse>> getIncomeForecastDashboard(
+      @PathVariable Integer monthsToLookBack) {
+    String userId = budgetService.getCurrentUserId();
+    return ResponseEntity.status(HttpStatus.OK)
+        .body(this.dashboardService.getIncomeForecastDashboard(userId, monthsToLookBack));
   }
 
   @GetMapping("/analytics/chart/{yearToLookBack}")
