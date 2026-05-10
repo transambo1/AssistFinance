@@ -1,15 +1,12 @@
 import { apiClient } from './apiClient';
 
 export const salaryConfigService = {
-    getAll: () => apiClient.get('/salaryconfigs'),
+    // URL khớp với: /api/v1/transactions/auto-configs
+    upsert: (payload: any) => apiClient.post('/v1/transactions/auto-configs', payload),
 
-    create: async (salaryConfigData: any) => { await apiClient("/salaryconfigs", salaryConfigData) },
+    // URL khớp với: /api/v1/transactions/auto-configs/{id}/toggle
+    toggleActive: (id: string) => apiClient.patch(`/v1/transactions/auto-configs/${id}/toggle`),
 
-    update: async (id: string, salaryConfigData: any) => await apiClient(`/salaryconfigs/${id}`, salaryConfigData),
-
-    delete: async (id: string) => {
-        await apiClient(`/salaryconfigs/${id}`, {
-            method: "DELETE"
-        });
-    },
+    // URL khớp với: /api/v1/transactions/auto-configs/{id}
+    delete: (id: string) => apiClient.delete(`/v1/transactions/auto-configs/${id}`),
 };

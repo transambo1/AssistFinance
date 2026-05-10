@@ -2,9 +2,9 @@ import { create } from 'axios';
 // Import file storage của bạn vào đây (nhớ sửa lại đường dẫn cho đúng nhé)
 import { storage } from '../utils/storage';
 
-const BASE_URL = 'http://192.168.2.20:8082/api';
+const BASE_URL = 'http://192.168.1.44:8082/api';
 
-export const apiClient = create({
+export const apiClient = create({  
     baseURL: BASE_URL,
     headers: {
         'Content-Type': 'application/json',

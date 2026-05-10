@@ -5,12 +5,11 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '../src/context/ThemeContext';
 import { User } from "@/src/types/index";
 import { userService } from "@/src/api/userService";
-import { transactionService } from "@/src/api/transactionService"; // KHÔI PHỤC: Import Transaction
-import { categoryService } from "@/src/api/categoryService"; // KHÔI PHỤC: Import Category
+import { categoryService } from "@/src/api/categoryService"; 
+import { salaryConfigService } from "@/src/api/salaryConfigService"; 
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { formatMoney } from '../src/utils/formatters';
 import { aiService } from '@/src/api/aiService';
-import { Calendar, LocaleConfig } from 'react-native-calendars'; // KHÔI PHỤC: Import Lịch
+import { Calendar, LocaleConfig } from 'react-native-calendars';
 
 // Cấu hình tiếng Việt cho lịch
 LocaleConfig.locales['vi'] = {
@@ -22,12 +21,15 @@ LocaleConfig.locales['vi'] = {
 };
 LocaleConfig.defaultLocale = 'vi';
 
+// Giới hạn 50 tỷ
+const MAX_SALARY = 50000000000;
+
 export default function WalletManagementScreen() {
     const { isDark } = useTheme();
     const router = useRouter();
 
-    // 1. LẤY THÔNG TIN USER (ĐỂ LẤY USER_ID GỬI LÊN BE)
-    const { data: userData } = useQuery<User>({
+    // 1. LẤY THÔNG TIN USER
+    const { data: userData } = useQuery({
         queryKey: ['userProfile'],
         queryFn: async () => {
             const response = await userService.getProfile() as any;
@@ -35,37 +37,52 @@ export default function WalletManagementScreen() {
         },
     });
 
-    // 2. LẤY DANH MỤC (ĐỂ TÌM ID DANH MỤC THU NHẬP)
-    const { data: categoryData } = useQuery<any>({
+    // 2. LẤY DANH MỤC
+    const { data: categoryData } = useQuery({
         queryKey: ['categories'],
         queryFn: () => categoryService.getAll(),
     });
     const categories = Array.isArray(categoryData?.data) ? categoryData.data : (categoryData?.data?.data || []);
 
     // States
-    const [salaryAmount, setSalaryAmount] = useState('35000000');
+    // Khởi tạo có format dấu chấm sẵn: 35.000.000
+    const [salaryAmount, setSalaryAmount] = useState('35.000.000');
     const [isActive, setIsActive] = useState(true);
-    
-    // Khôi phục: State dùng cho Lịch
     const [selectedDate, setSelectedDate] = useState('2026-04-10');
     const [showCalendar, setShowCalendar] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
-    // Lấy số ngày (VD: "10") để gửi làm payDay
     const dayDisplay = selectedDate.split('-')[2];
 
     const [visionData, setVisionData] = useState({
         title: 'Tầm nhìn Tài chính 2026',
-        description: 'Dựa trên cấu hình lương hiện tại, bạn đang đi đúng lộ trình tiết kiệm 25% thu nhập hàng năm. Hãy cân nhắc tối ưu hóa các khoản chi định kỳ trong phần Recurring.'
+        description: 'Dựa trên cấu hình lương hiện tại, bạn đang đi đúng lộ trình tiết kiệm 25% thu nhập hàng năm.'
     });
 
-    const generateVisionMutation = useMutation({
-        mutationFn: () => aiService.generateFinancialVision(salaryAmount, dayDisplay),
-        onSuccess: (data) => setVisionData(data),
-        onError: () => Alert.alert("Lỗi", "AI đang bận, vui lòng thử lại sau.")
-    });
+    // --- LOGIC MỚI: FORMAT TIỀN & GIỚI HẠN 50 TỶ ---
+    const handleAmountChange = (text: string) => {
+        // Chỉ giữ lại số
+        const cleanNumber = text.replace(/[^0-9]/g, '');
+        
+        if (cleanNumber === '') {
+            setSalaryAmount('');
+            return;
+        }
 
-    // --- KHÔI PHỤC: HÀM LƯU CẤU HÌNH LƯƠNG CHUẨN ---
+        const parsedNumber = parseInt(cleanNumber, 10);
+
+        // Chặn nếu vượt quá 50 tỷ
+        if (parsedNumber > MAX_SALARY) {
+            Alert.alert("Giới hạn", "Số tiền cấu hình không được vượt quá 50 tỷ VNĐ.");
+            return;
+        }
+
+        // Định dạng dấu chấm kiểu VN: 1.000.000
+        const formatted = cleanNumber.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        setSalaryAmount(formatted);
+    };
+
+    // --- LOGIC LƯU: GỬI SỐ NGUYÊN LÊN BE ---
     const handleSaveConfig = async () => {
         if (!userData?.id) {
             Alert.alert("Lỗi", "Không tìm thấy thông tin người dùng.");
@@ -74,35 +91,44 @@ export default function WalletManagementScreen() {
 
         const incomeCategory = categories.find((c: any) => c.type === 'INCOME');
         if (!incomeCategory?.id) {
-            Alert.alert("Lỗi", "Bạn chưa có danh mục Thu nhập nào trong hệ thống.");
+            Alert.alert("Lỗi", "Bạn chưa có danh mục Thu nhập (INCOME) nào.");
             return;
         }
 
         setIsSaving(true);
-        try {
-            const amountNum = Number(salaryAmount.replace(/[^0-9]/g, ''));
-            
-            // Payload chuẩn y chang SalaryConfigReq ở Backend
-            const payload = {
-                userId: userData.id,
-                categoryId: incomeCategory.id,
-                amount: amountNum,
-                type: "INCOME",
-                frequency: "MONTHLY",
-                payDay: parseInt(dayDisplay, 10), 
-                description: "Lương tự động hàng tháng"
-            };
+    try {
+        const amountNum = Number(salaryAmount.replace(/\./g, ''));
+        
+        const payload = {
+            id: null,
+            userId: userData.id,
+            categoryId: incomeCategory.id,
+            amount: amountNum,
+            payDay: parseInt(dayDisplay, 10), 
+            frequency: "MONTHLY",
+            type: "INCOME",
+            description: "Lương tự động hàng tháng"
+        };
 
-            await transactionService.upsertSalaryConfig(payload);
-            
+        // GỌI ĐÚNG HÀM UPSERT
+        const response = await salaryConfigService.upsert(payload);
+        
+        if (response) {
             Alert.alert("Thành công", "Đã lưu cấu hình lương tự động.");
-        } catch (error) {
-            Alert.alert("Lỗi", "Không thể lưu cấu hình. Vui lòng thử lại.");
-            console.error(error);
-        } finally {
-            setIsSaving(false);
         }
+    } catch (error) {
+        console.error(error);
+        Alert.alert("Lỗi", "Không tìm thấy đường dẫn API (404) hoặc lỗi server.");
+    } finally {
+        setIsSaving(false);
+    }
     };
+
+    const generateVisionMutation = useMutation({
+        mutationFn: () => aiService.generateFinancialVision(salaryAmount, dayDisplay),
+        onSuccess: (data) => setVisionData(data),
+        onError: () => Alert.alert("Lỗi", "AI đang bận, vui lòng thử lại sau.")
+    });
 
     const bgColor = isDark ? '#121212' : '#F8F6FA';
     const surfaceColor = isDark ? '#1E1E1E' : '#ffffff';
@@ -129,7 +155,6 @@ export default function WalletManagementScreen() {
                     <Text style={[styles.pageTitle, { color: primaryColor }]}>Cá nhân & Cấu hình{'\n'}Lương</Text>
                 </View>
 
-                {/* Card Cấu hình lương */}
                 <View style={[styles.salaryCard, { backgroundColor: surfaceColor }]}>
                     <View style={styles.salaryHeader}>
                         <View style={[styles.iconBox, { backgroundColor: primaryColor }]}>
@@ -137,7 +162,7 @@ export default function WalletManagementScreen() {
                         </View>
                         <View>
                             <Text style={[styles.salaryTitle, { color: textColor }]}>Cấu hình lương định kỳ</Text>
-                            <Text style={[styles.salaryDesc, { color: textDimColor }]}>Thiết lập thu nhập hàng tháng của bạn</Text>
+                            <Text style={[styles.salaryDesc, { color: textDimColor }]}>Thiết lập thu nhập hàng tháng</Text>
                         </View>
                     </View>
 
@@ -146,15 +171,14 @@ export default function WalletManagementScreen() {
                         <TextInput
                             style={[styles.input, { color: textColor }]}
                             value={salaryAmount}
-                            onChangeText={setSalaryAmount}
+                            onChangeText={handleAmountChange} // Dùng hàm format mới
                             keyboardType="numeric"
                         />
-                        <MaterialIcons name="edit" size={20} color={textDimColor} />
+                        <Text style={{ color: textDimColor, fontWeight: 'bold' }}>đ</Text>
                     </View>
 
                     <Text style={[styles.inputLabel, { color: primaryColor, marginTop: 16 }]}>NGÀY NHẬN LƯƠNG HÀNG THÁNG</Text>
 
-                    {/* KHÔI PHỤC: Nút mở Lịch */}
                     <TouchableOpacity
                         style={[styles.inputContainer, { backgroundColor: isDark ? '#2C2C3E' : '#f5f2fb', marginBottom: 12, justifyContent: 'space-between' }]}
                         onPress={() => setShowCalendar(true)}
@@ -163,16 +187,15 @@ export default function WalletManagementScreen() {
                         <MaterialIcons name="calendar-month" size={24} color={primaryColor} />
                     </TouchableOpacity>
 
-                    <Text style={[styles.helperText, { color: textDimColor }]}>Hệ thống sẽ tự động cộng tiền vào ngày {dayDisplay} hàng tháng.</Text>
+                    <Text style={[styles.helperText, { color: textDimColor }]}>Tiền sẽ tự động cộng vào ví ngày {dayDisplay} mỗi tháng.</Text>
 
                     <View style={[styles.switchRow, { backgroundColor: isDark ? '#2C2C3E' : '#f5f2fb' }]}>
                         <View style={styles.switchLeft}><Text style={[styles.switchText, { color: textColor }]}>Trạng thái hoạt động</Text></View>
                         <Switch value={isActive} onValueChange={setIsActive} trackColor={{ false: "#c6c5d4", true: primaryColor }} thumbColor={"#ffffff"} />
                     </View>
 
-                    {/* KHÔI PHỤC: Gắn hàm handleSaveConfig */}
                     <TouchableOpacity 
-                        style={[styles.saveBtn, { backgroundColor: primaryColor }]}
+                        style={[styles.saveBtn, { backgroundColor: primaryColor, opacity: isSaving ? 0.7 : 1 }]}
                         onPress={handleSaveConfig}
                         disabled={isSaving}
                     >
@@ -198,7 +221,6 @@ export default function WalletManagementScreen() {
                 </View>
             </ScrollView>
 
-            {/* KHÔI PHỤC: Modal Lịch */}
             <Modal visible={showCalendar} transparent animationType="fade">
                 <View style={styles.modalOverlay}>
                     <View style={styles.calendarContainer}>
@@ -220,12 +242,10 @@ export default function WalletManagementScreen() {
                             }}
                             theme={{
                                 calendarBackground: '#ffffff',
-                                textSectionTitleColor: '#b6c1cd',
                                 selectedDayBackgroundColor: primaryColor,
                                 selectedDayTextColor: '#ffffff',
                                 todayTextColor: primaryColor,
                                 dayTextColor: '#2d4150',
-                                textDisabledColor: '#d9e1e8',
                                 arrowColor: primaryColor,
                                 monthTextColor: primaryColor,
                                 textDayFontWeight: '500',
@@ -265,13 +285,12 @@ const styles = StyleSheet.create({
     switchText: { fontSize: 15, fontWeight: '600' },
     saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 56, borderRadius: 16, gap: 8 },
     saveBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-    visionCard: { borderRadius: 24, overflow: 'hidden', paddingBottom: 20, elevation: 3 },
+    visionCard: { borderRadius: 24, overflow: 'hidden', paddingBottom: 20, elevation: 3, marginBottom: 20 },
     visionImage: { width: '100%', height: 160, marginBottom: 16 },
     visionTitle: { fontSize: 18, fontWeight: 'bold', paddingHorizontal: 20, marginBottom: 8 },
     visionDesc: { fontSize: 14, lineHeight: 22, paddingHorizontal: 20, marginBottom: 16 },
     aiUpdateBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: 'rgba(26, 35, 126, 0.1)', alignSelf: 'flex-start', marginLeft: 20, marginBottom: 12 },
     aiUpdateBtnText: { fontSize: 12, fontWeight: '700' },
-
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
     calendarContainer: { width: '90%', backgroundColor: '#fff', borderRadius: 24, padding: 20, shadowColor: '#000', elevation: 10 },
     calendarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
