@@ -20,7 +20,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { budgetService } from '../src/api/budgetService';
-import { categoryService } from '../src/api/categoryService'; // Import API Danh mục của bạn
+import { categoryService } from '../src/api/categoryService';
 
 export default function CreateBudgetScreen() {
     const router = useRouter();
@@ -39,20 +39,19 @@ export default function CreateBudgetScreen() {
     // --- STATES THỜI GIAN ---
     const [startDate, setStartDate] = useState(new Date());
 
-    // Mặc định kết thúc sau 1 tháng
     const defaultEndDate = new Date();
     defaultEndDate.setMonth(defaultEndDate.getMonth() + 1);
     defaultEndDate.setDate(defaultEndDate.getDate() - 1);
     const [endDate, setEndDate] = useState(defaultEndDate);
 
-    const [activeDurationChip, setActiveDurationChip] = useState<number | null>(1); // 1, 3, 12, 24 hoặc null nếu tự chọn ngày
+    const [activeDurationChip, setActiveDurationChip] = useState<number | null>(1);
     const [showDatePicker, setShowDatePicker] = useState<'START' | 'END' | null>(null);
 
+    const MAX_AMOUNT = 50000000000; // Giới hạn 50 Tỷ
 
     const { data: categories = [], isLoading: isLoadingCategories } = useQuery({
         queryKey: ['categories', 'EXPENSE'],
         queryFn: async () => {
-            // Chỉ lấy danh mục CHI TIÊU cho ngân sách Hạn mức
             const res = await categoryService.getAll({ type: 'EXPENSE' });
             return res?.data?.data || res?.data?.items || res?.data || [];
         }
@@ -72,20 +71,40 @@ export default function CreateBudgetScreen() {
         return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
     };
 
+    // --- LOGIC XỬ LÝ NHẬP TIỀN GIỚI HẠN 50 TỶ ---
+    const handleTargetAmountChange = (val: string) => {
+        const num = getRawNumber(val);
+        if (num > MAX_AMOUNT) {
+            Alert.alert('Giới hạn', 'Số tiền mục tiêu tối đa là 50 tỷ VND');
+            setTargetAmount(MAX_AMOUNT.toString());
+        } else {
+            setTargetAmount(val);
+        }
+    };
+
+    const handleCurrentAmountChange = (val: string) => {
+        const num = getRawNumber(val);
+        if (num > MAX_AMOUNT) {
+            Alert.alert('Giới hạn', 'Số dư đã tiêu tối đa là 50 tỷ VND');
+            setCurrentAmount(MAX_AMOUNT.toString());
+        } else {
+            setCurrentAmount(val);
+        }
+    };
+
     // --- LOGIC CHỌN THỜI GIAN ---
     const handleSelectDurationChip = (months: number) => {
         setActiveDurationChip(months);
         const newStart = new Date();
         const newEnd = new Date();
         newEnd.setMonth(newStart.getMonth() + months);
-        newEnd.setDate(newEnd.getDate() - 1); // Trừ 1 ngày cho tròn tháng
+        newEnd.setDate(newEnd.getDate() - 1);
 
         setStartDate(newStart);
         setEndDate(newEnd);
     };
 
     const handleDateChange = (event: any, selectedDate?: Date) => {
-        // Đóng picker trên Android
         if (Platform.OS === 'android') {
             setShowDatePicker(null);
         }
@@ -94,16 +113,15 @@ export default function CreateBudgetScreen() {
         }
 
         if (selectedDate) {
-            setActiveDurationChip(null); // Người dùng tự chọn ngày -> Hủy trạng thái của Chip 1T, 3T...
+            setActiveDurationChip(null);
             if (showDatePicker === 'START') {
                 setStartDate(selectedDate);
-                if (selectedDate > endDate) setEndDate(selectedDate); // Cập nhật luôn ngày kết thúc nếu nó bé hơn ngày bắt đầu
+                if (selectedDate > endDate) setEndDate(selectedDate);
             } else if (showDatePicker === 'END') {
                 setEndDate(selectedDate);
             }
         }
 
-        // Đóng picker trên iOS
         if (Platform.OS === 'ios') {
             setShowDatePicker(null);
         }
@@ -141,12 +159,8 @@ export default function CreateBudgetScreen() {
             currentAmount: getRawNumber(currentAmount) || 0,
             type: type,
             categoryId: type === 'LIMIT' ? selectedCategory.id : null,
-
-            // Gửi Epoch Milli cho BE
             startDate: startDate.getTime(),
             endDate: endDate.getTime(),
-
-            // Nếu user bấm chip thì gửi duration, tự chọn ngày thì gửi null để BE lấy startDate/endDate
             durationMonths: activeDurationChip
         };
 
@@ -192,7 +206,7 @@ export default function CreateBudgetScreen() {
                             <TextInput
                                 style={styles.amountInput}
                                 value={targetAmount === '' ? '' : formatNumber(targetAmount)}
-                                onChangeText={setTargetAmount}
+                                onChangeText={handleTargetAmountChange} // Dùng hàm kiểm tra 50 Tỷ
                                 keyboardType="numeric"
                                 placeholder="0"
                                 placeholderTextColor="#1a237e80"
@@ -260,7 +274,7 @@ export default function CreateBudgetScreen() {
                                 placeholderTextColor="#9E9E9E"
                                 keyboardType="numeric"
                                 value={currentAmount === '' ? '' : formatNumber(currentAmount)}
-                                onChangeText={setCurrentAmount}
+                                onChangeText={handleCurrentAmountChange} // Dùng hàm kiểm tra 50 Tỷ
                             />
                             <Text style={styles.suffixText}>VND</Text>
                         </View>
@@ -312,6 +326,7 @@ export default function CreateBudgetScreen() {
                     </TouchableOpacity>
                 </ScrollView>
             </KeyboardAvoidingView>
+            
             {/* --- XỬ LÝ LỊCH CHO ANDROID --- */}
             {Platform.OS === 'android' && showDatePicker && (
                 <DateTimePicker
@@ -323,12 +338,11 @@ export default function CreateBudgetScreen() {
                 />
             )}
 
-            {/* --- XỬ LÝ LỊCH CHO iOS (Có nút XONG đàng hoàng) --- */}
+            {/* --- XỬ LÝ LỊCH CHO iOS --- */}
             {Platform.OS === 'ios' && showDatePicker && (
                 <Modal transparent animationType="fade">
                     <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
                         <View style={{ backgroundColor: '#FFF', paddingBottom: 20, borderTopLeftRadius: 20, borderTopRightRadius: 20 }}>
-                            {/* Thanh công cụ chứa nút Xong */}
                             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', padding: 16, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}>
                                 <TouchableOpacity onPress={() => setShowDatePicker(null)}>
                                     <Text style={{ color: '#1a237e', fontWeight: 'bold', fontSize: 16 }}>Xong</Text>
@@ -346,6 +360,7 @@ export default function CreateBudgetScreen() {
                     </View>
                 </Modal>
             )}
+
             {/* BOTTOM SHEET: CHỌN DANH MỤC */}
             <Modal visible={isCategoryModalVisible} transparent animationType="slide">
                 <View style={styles.modalOverlay}>

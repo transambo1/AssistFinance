@@ -15,6 +15,7 @@ import { formatMoney } from '../../src/utils/formatters';
 import { aiService } from '../../src/api/aiService';
 import { transactionService } from '@/src/api/transactionService';
 
+
 export default function DashboardScreen() {
   const router = useRouter();
   const { isDark, colors } = useTheme();
@@ -134,7 +135,7 @@ export default function DashboardScreen() {
     { id: 'transactions', name: 'Giao dịch', icon: 'receipt', color: '#6200ee', route: '/add-transaction' },
     { id: 'budget', name: 'Ngân sách', icon: 'account-balance', color: '#00c853', route: '/budget' },
     { id: 'chatAI', name: 'Gợi ý AI', icon: 'tips-and-updates', color: '#ffab00', action: handleAiInsight },
-    { id: 'hub', name: 'Thống kê', icon: 'pie-chart', color: '#d500f9', route: '/history' },
+    { id: 'hub', name: 'Thống kê', icon: 'pie-chart', color: '#d500f9', route: '/DashboardScreen' },
   ];
 
   if (isUserLoading || isTransactionsLoading) {
