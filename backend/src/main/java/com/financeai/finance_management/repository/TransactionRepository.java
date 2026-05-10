@@ -157,4 +157,12 @@ public interface TransactionRepository
   Optional<Transaction> findAnomalyDetailById(
           @Param("userId") String userId,
           @Param("transactionId") String transactionId);
+
+    @Query(
+            "SELECT t.category.name as name, SUM(t.amount) as amount, t.category.color as color "
+                    + "FROM Transaction t "
+                    + "WHERE t.user.id = :userId AND t.type = 'EXPENSE' "
+                    + "AND t.transactionDate BETWEEN :start AND :endDate "
+                    + "GROUP BY t.category.name, t.category.color")
+    List<CategorySumProjection> sumAmountByCategory(String userId, Long start, Long endDate);
 }
