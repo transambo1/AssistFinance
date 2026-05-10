@@ -2,12 +2,12 @@ package com.financeai.finance_management.security;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import jakarta.annotation.PostConstruct;
 import java.security.Key;
 import java.util.Date;
 
@@ -15,7 +15,6 @@ import java.util.Date;
 public class JwtUtils {
     private static final Logger logger = LoggerFactory.getLogger(JwtUtils.class);
 
-    // Lấy Key và thời gian sống từ file application.yml
     @Value("${jwt.signerKey}")
     private String signerKey;
 
@@ -26,7 +25,6 @@ public class JwtUtils {
 
     @PostConstruct
     public void init() {
-        // Chuyển chuỗi bí mật dài của bạn thành Key chuẩn cho thuật toán HS512
         this.key = Keys.hmacShaKeyFor(signerKey.getBytes());
     }
 
@@ -40,14 +38,26 @@ public class JwtUtils {
     }
 
     public String getUserIdFromJwtToken(String token) {
-        return Jwts.parserBuilder().setSigningKey(key).build()
-                .parseClaimsJws(token).getBody().getSubject();
+        return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .getSubject();
     }
 
     public boolean validateJwtToken(String authToken) {
         try {
             Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(authToken);
             return true;
+        } catch (MalformedJwtException e) {
+            logger.error("Token không hợp lệ: {}", e.getMessage());
+        } catch (ExpiredJwtException e) {
+            logger.error("Token đã hết hạn: {}", e.getMessage());
+        } catch (UnsupportedJwtException e) {
+            logger.error("Token không được hỗ trợ: {}", e.getMessage());
+        } catch (IllegalArgumentException e) {
+            logger.error("Chuỗi Claims trống: {}", e.getMessage());
         } catch (Exception e) {
             logger.error("Lỗi xác thực Token: {}", e.getMessage());
         }
