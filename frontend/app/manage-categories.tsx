@@ -7,10 +7,13 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import Swipeable from 'react-native-gesture-handler/Swipeable';
+
 // IMPORT QUAN TRỌNG: Dùng TouchableOpacity của thư viện này để fix lỗi liệt cảm ứng nút Xóa
-import { TouchableOpacity as GHTouchableOpacity } from 'react-native-gesture-handler';
+import { 
+  GestureHandlerRootView, 
+  Swipeable, 
+  TouchableOpacity as GHTouchableOpacity 
+} from 'react-native-gesture-handler';
 
 import { categoryService } from '@/src/api/categoryService';
 import { useTheme } from '@/src/context/ThemeContext';
@@ -22,7 +25,7 @@ export default function ManageCategoriesScreen() {
     const { type: initialType } = useLocalSearchParams<{ type: 'EXPENSE' | 'INCOME' }>();
     const [currentType, setCurrentType] = useState<'EXPENSE' | 'INCOME'>(initialType || 'EXPENSE');
 
-    const { colors, isDark } = useTheme();
+    const { colors  } = useTheme();
     const queryClient = useQueryClient();
 
     // 1. Lấy danh sách danh mục THEO LOẠI ĐANG CHỌN (currentType)
