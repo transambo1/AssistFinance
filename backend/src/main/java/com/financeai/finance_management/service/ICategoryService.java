@@ -7,23 +7,23 @@ import com.financeai.finance_management.dto.response.BasePaginationResponse;
 import com.financeai.finance_management.dto.response.BaseResponse;
 import com.financeai.finance_management.dto.response.CategoryResponse;
 
-import java.util.List;
-
 public interface ICategoryService {
-    void createDefaultCategories(String userId);
-    BaseResponse<CategoryResponse> createCategory(CategoryCreationRequest request);
+  void createDefaultCategories(String userId);
 
-    BaseResponse<CategoryResponse> updateCategory(String id, CategoryUpdateRequest request);
+  BaseResponse<CategoryResponse> createCategory(CategoryCreationRequest request);
 
-    BaseResponse<CategoryResponse> getCategoryById(String id);
+  BaseResponse<CategoryResponse> updateCategory(String id, CategoryUpdateRequest request);
 
-    BaseResponse<BasePaginationResponse<CategoryResponse>> getAllCategories(CategoryFilterRequest request);
+  BaseResponse<CategoryResponse> getCategoryById(String id);
 
-    BaseResponse<String> archiveCategory(String id);
+  BaseResponse<BasePaginationResponse<CategoryResponse>> getAllCategories(
+      CategoryFilterRequest request);
 
-    BaseResponse<String> unarchiveCategory(String id);
+  BaseResponse<String> archiveCategory(String id);
 
-    BaseResponse<String> softDeleteCategory(String id);
+  BaseResponse<String> unarchiveCategory(String id);
 
-    BaseResponse<String> increaseUsageCount(String id);
+  BaseResponse<String> softDeleteCategory(String id);
+
+  BaseResponse<String> increaseUsageCount(String id);
 }

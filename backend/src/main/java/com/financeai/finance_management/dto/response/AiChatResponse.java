@@ -6,8 +6,8 @@ import lombok.Setter;
 @Getter
 @Setter
 public class AiChatResponse {
-    private String actionType; // PARSE_TRANSACTION | QUERY
-    private String answer;
-    private String intent;
-    private Object data;
+  private String actionType; // PARSE_TRANSACTION | QUERY
+  private String answer;
+  private String intent;
+  private Object data;
 }

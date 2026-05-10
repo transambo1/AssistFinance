@@ -19,7 +19,10 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.MACVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
-import io.github.perplexhub.rsql.RSQLJPASupport;
+import java.text.ParseException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -27,251 +30,244 @@ import lombok.experimental.NonFinal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.util.CollectionUtils;
-
-import java.text.ParseException;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
-import java.util.*;
 
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class AuthenticationServiceImpl implements IAuthenticationService {
-    private static final Logger log = LoggerFactory.getLogger(IAuthenticationService.class);
-    UserRepository userRepository;
-    InvalidatedTokenRepository invalidatedTokenRepository;
-    private static final List<String> SEARCH_FIELDS = List.of("fullname");
-    private final ICategoryService categoryService;
+  private static final Logger log = LoggerFactory.getLogger(IAuthenticationService.class);
+  UserRepository userRepository;
+  InvalidatedTokenRepository invalidatedTokenRepository;
+  private static final List<String> SEARCH_FIELDS = List.of("fullname");
+  private final ICategoryService categoryService;
 
-    @NonFinal
-    @Value("${jwt.signerKey}")
-    protected String SIGNER_KEY ;
+  @NonFinal
+  @Value("${jwt.signerKey}")
+  protected String SIGNER_KEY;
 
-    @NonFinal
-    @Value("${jwt.valid-duration}")
-    protected long VALID_DURATION ;
+  @NonFinal
+  @Value("${jwt.valid-duration}")
+  protected long VALID_DURATION;
 
-    @NonFinal
-    @Value("${jwt.refreshable-duration}")
-    protected long REFRESHABLE_DURATION ;
+  @NonFinal
+  @Value("${jwt.refreshable-duration}")
+  protected long REFRESHABLE_DURATION;
 
-    @Override
-    public IntrospectResponse introspectResponse(IntrospectRequest request) throws ParseException, JOSEException {
-        var token = request.getToken();
-        boolean isValid = true;
-        try {
-            verifyToken(token, false);
-        } catch (AppException e) {
-            isValid = false;
-        }
-        return IntrospectResponse.builder()
-                .valid(isValid)
-                .build();
+  @Override
+  public IntrospectResponse introspectResponse(IntrospectRequest request)
+      throws ParseException, JOSEException {
+    var token = request.getToken();
+    boolean isValid = true;
+    try {
+      verifyToken(token, false);
+    } catch (AppException e) {
+      isValid = false;
+    }
+    return IntrospectResponse.builder().valid(isValid).build();
+  }
+
+  @Override
+  public BaseResponse<AuthenticationResponse> authenticate(AuthenticationRequest request) {
+    var user =
+        userRepository
+            .findByUsername(request.getUsername())
+            .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+    PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
+    boolean authenticated = passwordEncoder.matches(request.getPassword(), user.getPassword());
+    if (!authenticated) throw new AppException(ErrorCode.UNAUTHENTICATED);
+    var token = generateToken(user);
+    log.info("asdasd: {}", token);
+    return BaseResponse.ok(
+        AuthenticationResponse.builder().token(token).authenticated(true).build());
+  }
+
+  @Override
+  public AuthenticationResponse refreshToken(RefreshRequest request)
+      throws ParseException, JOSEException {
+    var signToken = verifyToken(request.getToken(), true);
+
+    String jit = signToken.getJWTClaimsSet().getJWTID();
+    Date expiryTime = signToken.getJWTClaimsSet().getExpirationTime();
+    String userId = signToken.getJWTClaimsSet().getSubject();
+    InvalidatedToken invalidatedToken =
+        InvalidatedToken.builder().id(jit).expiryDate(expiryTime).build();
+    invalidatedTokenRepository.save(invalidatedToken);
+
+    var user =
+        userRepository
+            .findByUsername(userId)
+            .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+    var token = generateToken(user);
+    return AuthenticationResponse.builder().token(token).authenticated(true).build();
+  }
+
+  @Override
+  public BaseResponse<AuthenticationResponse> register(RegisterRequest request) {
+
+    Optional<User> existingUser = userRepository.findByUsername(request.getUsername());
+
+    if (userRepository.findByUsername(request.getUsername()).isPresent()) {
+      throw new AppException(ErrorCode.USER_EXISTED);
     }
 
-    @Override
-    public BaseResponse<AuthenticationResponse> authenticate(AuthenticationRequest request) {
-        var user = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
-        PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
-        boolean authenticated =  passwordEncoder.matches(request.getPassword(), user.getPassword());
-        if(!authenticated) throw new AppException(ErrorCode.UNAUTHENTICATED);
-        var token = generateToken(user);
-        log.info("asdasd: {}", token);
-        return BaseResponse.ok(AuthenticationResponse.builder()
-                .token(token)
-                .authenticated(true)
-                .build());
-    }
+    PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
+    String encodedPassword = passwordEncoder.encode(request.getPassword());
 
-    @Override
-    public AuthenticationResponse refreshToken(RefreshRequest request) throws ParseException, JOSEException {
-        var signToken = verifyToken(request.getToken(), true);
-
-        String jit = signToken.getJWTClaimsSet().getJWTID();
-        Date expiryTime = signToken.getJWTClaimsSet().getExpirationTime();
-        String userId = signToken.getJWTClaimsSet().getSubject();
-        InvalidatedToken invalidatedToken = InvalidatedToken.builder()
-                .id(jit)
-                .expiryDate(expiryTime)
-                .build();
-        invalidatedTokenRepository.save(invalidatedToken);
-
-        var user = userRepository.findByUsername(userId).orElseThrow(
-                () -> new AppException(ErrorCode.USER_NOT_EXISTED)
-        );
-
-        var token = generateToken(user);
-        return AuthenticationResponse.builder()
-                .token(token)
-                .authenticated(true)
-                .build();
-    }
-    @Override
-    public BaseResponse<AuthenticationResponse> register(RegisterRequest request) {
-
-        Optional<User> existingUser = userRepository.findByUsername(request.getUsername());
-
-        if (userRepository.findByUsername(request.getUsername()).isPresent()) {
-            throw new AppException(ErrorCode.USER_EXISTED);
-        }
-
-
-        PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
-        String encodedPassword = passwordEncoder.encode(request.getPassword());
-
-
-        User newUser = User.builder()
-                .id(String.valueOf(IdGenerator.generateRandomId())) // BẮT BUỘC phải có dòng này vì Entity không tự sinh ID
-                .username(request.getUsername())
-                .password(encodedPassword)
-                .fullName(request.getFullName()) // Khớp với biến fullName trong Entity
-                .email(request.getEmail())
-                .currentBalance(java.math.BigDecimal.ZERO) // Set giá trị mặc định cho an toàn
-                .build();
-
-        User savedUser = userRepository.save(newUser);
-        categoryService.createDefaultCategories(savedUser.getId());
-
-
-
-        String token = generateToken(savedUser);
-        userRepository.save(newUser);
-
-        AuthenticationResponse authResponse = AuthenticationResponse.builder()
-                .token(token)
-                .authenticated(true)
-                .build();
-        return BaseResponse.ok(authResponse);
-    }
-
-    @Override
-    public SignedJWT verifyToken(String token, boolean isRefresh) throws ParseException, JOSEException {
-        JWSVerifier verifier = new MACVerifier(SIGNER_KEY.getBytes());
-
-        SignedJWT signedJWT = SignedJWT.parse(token);
-
-        // Kiểm tra thời gian hết hạn
-        Date expiryTime = (isRefresh)
-                ? new Date(signedJWT.getJWTClaimsSet().getIssueTime()
-                .toInstant().plus(REFRESHABLE_DURATION, ChronoUnit.SECONDS)
-                .toEpochMilli())
-                : signedJWT.getJWTClaimsSet().getExpirationTime();
-
-        var verified = signedJWT.verify(verifier);
-
-        // LOG RA ĐỂ BIẾT TẠI SAO FALSE
-        if (!verified) System.err.println("DEBUG: Chu ky Token khong khop!");
-        if (!expiryTime.after(new Date())) System.err.println("DEBUG: Token da het han!");
-
-        if (!(verified && expiryTime.after(new Date())))
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-
-        if (invalidatedTokenRepository.existsById(signedJWT.getJWTClaimsSet().getJWTID())) {
-            System.err.println("DEBUG: Token nam trong danh sach den (Blacklist)!");
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-        return signedJWT;
-    }
-    @Override
-    public String generateToken(User user) {
-        JWSHeader header = new JWSHeader(JWSAlgorithm.HS512);
-        JWTClaimsSet jwtClaimsSet = new JWTClaimsSet.Builder()
-                .subject(user.getId())
-                .issuer("fast-food.com")
-                .issueTime(new Date())
-                .expirationTime(new Date(
-                        Instant.now().plus(VALID_DURATION, ChronoUnit.SECONDS).toEpochMilli()
-                ))
-                .jwtID(UUID.randomUUID().toString())
-                .build();
-
-        Payload payload = new Payload(jwtClaimsSet.toJSONObject());
-        JWSObject jwsObject = new JWSObject(header, payload);
-
-        try {
-            jwsObject.sign(new MACSigner(SIGNER_KEY.getBytes()));
-            return jwsObject.serialize();
-        } catch (JOSEException e) {
-            log.error("Cannot sign JWT object", e);
-            throw new RuntimeException(e);
-        }
-    }
-    @Override
-    public void logout(LogoutRequest request) throws ParseException, JOSEException {
-        try {
-            var signToken = verifyToken(request.getToken(), true);
-
-            String jit = signToken.getJWTClaimsSet().getJWTID();
-            Date expiryTime = signToken.getJWTClaimsSet().getExpirationTime();
-
-            InvalidatedToken invalidatedToken = InvalidatedToken.builder()
-                    .id(jit)
-                    .expiryDate(expiryTime)
+    User newUser =
+            User.builder()
+                    .id(String.valueOf(IdGenerator.generateRandomId()))
+                    .username(request.getUsername())
+                    .password(encodedPassword)
+                    .fullName(request.getFullName())
+                    .email(request.getEmail())
+                    .currentBalance(java.math.BigDecimal.ZERO)
                     .build();
 
-            invalidatedTokenRepository.save(invalidatedToken);
-        } catch (AppException e) {
-            log.info("Token already expired");
-        }
+    newUser.setCreatedAt(Instant.now().toEpochMilli());
+
+    User savedUser = userRepository.save(newUser);
+    categoryService.createDefaultCategories(savedUser.getId());
+
+    String token = generateToken(savedUser);
+
+    AuthenticationResponse authResponse =
+        AuthenticationResponse.builder().token(token).authenticated(true).build();
+    return BaseResponse.ok(authResponse);
+  }
+
+  @Override
+  public SignedJWT verifyToken(String token, boolean isRefresh)
+      throws ParseException, JOSEException {
+    JWSVerifier verifier = new MACVerifier(SIGNER_KEY.getBytes());
+
+    SignedJWT signedJWT = SignedJWT.parse(token);
+
+    // Kiểm tra thời gian hết hạn
+    Date expiryTime =
+        (isRefresh)
+            ? new Date(
+                signedJWT
+                    .getJWTClaimsSet()
+                    .getIssueTime()
+                    .toInstant()
+                    .plus(REFRESHABLE_DURATION, ChronoUnit.SECONDS)
+                    .toEpochMilli())
+            : signedJWT.getJWTClaimsSet().getExpirationTime();
+
+    var verified = signedJWT.verify(verifier);
+
+    // LOG RA ĐỂ BIẾT TẠI SAO FALSE
+    if (!verified) System.err.println("DEBUG: Chu ky Token khong khop!");
+    if (!expiryTime.after(new Date())) System.err.println("DEBUG: Token da het han!");
+
+    if (!(verified && expiryTime.after(new Date())))
+      throw new AppException(ErrorCode.UNAUTHENTICATED);
+
+    if (invalidatedTokenRepository.existsById(signedJWT.getJWTClaimsSet().getJWTID())) {
+      System.err.println("DEBUG: Token nam trong danh sach den (Blacklist)!");
+      throw new AppException(ErrorCode.UNAUTHENTICATED);
     }
-    @Override
-    public BaseResponse<UserResponse> getMyInfo() {
-        // 1. Lấy username từ SecurityContext
-        var context = SecurityContextHolder.getContext();
-        String userId = context.getAuthentication().getName();
+    return signedJWT;
+  }
 
-        // 2. Tìm User trong DB
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+  @Override
+  public String generateToken(User user) {
+    JWSHeader header = new JWSHeader(JWSAlgorithm.HS512);
+    JWTClaimsSet jwtClaimsSet =
+        new JWTClaimsSet.Builder()
+            .subject(user.getId())
+            .issuer("fast-food.com")
+            .issueTime(new Date())
+            .expirationTime(
+                new Date(Instant.now().plus(VALID_DURATION, ChronoUnit.SECONDS).toEpochMilli()))
+            .jwtID(UUID.randomUUID().toString())
+            .build();
 
-        // 3. Map sang DTO và bọc vào BaseResponse
-        UserResponse userResponse = mapToUserResponse(user);
-        return BaseResponse.ok(userResponse);
+    Payload payload = new Payload(jwtClaimsSet.toJSONObject());
+    JWSObject jwsObject = new JWSObject(header, payload);
+
+    try {
+      jwsObject.sign(new MACSigner(SIGNER_KEY.getBytes()));
+      return jwsObject.serialize();
+    } catch (JOSEException e) {
+      log.error("Cannot sign JWT object", e);
+      throw new RuntimeException(e);
     }
+  }
 
-    @Override
-    public BaseResponse<UserResponse> updateMyInfo(UserUpdateRequest request) {
-        // 1. Lấy username từ SecurityContext
-        var context = SecurityContextHolder.getContext();
-        String userId = context.getAuthentication().getName();
+  @Override
+  public void logout(LogoutRequest request) throws ParseException, JOSEException {
+    try {
+      var signToken = verifyToken(request.getToken(), true);
 
-        // 2. Tìm User
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+      String jit = signToken.getJWTClaimsSet().getJWTID();
+      Date expiryTime = signToken.getJWTClaimsSet().getExpirationTime();
 
-        // 3. Cập nhật thông tin
-        user.setFullName(request.getFullName());
-        user.setDisplayName(request.getDisplayName());
-        user.setEmail(request.getEmail());
-        user.setPhone(request.getPhone());
-        user.setPhotoUrl(request.getPhotoUrl());
+      InvalidatedToken invalidatedToken =
+          InvalidatedToken.builder().id(jit).expiryDate(expiryTime).build();
 
-        User savedUser = userRepository.save(user);
-
-        return BaseResponse.ok(mapToUserResponse(savedUser));
+      invalidatedTokenRepository.save(invalidatedToken);
+    } catch (AppException e) {
+      log.info("Token already expired");
     }
-    private UserResponse mapToUserResponse(User user) {
-        return UserResponse.builder()
-                .id(user.getId())
-                .username(user.getUsername())
-                .fullName(user.getFullName())
-                .displayName(user.getDisplayName())
-                .email(user.getEmail())
-                .phone(user.getPhone())
-                .photoUrl(user.getPhotoUrl())
-                .currentBalance(user.getCurrentBalance())
+  }
 
-                .build();
-    }
+  @Override
+  public BaseResponse<UserResponse> getMyInfo() {
+    // 1. Lấy username từ SecurityContext
+    var context = SecurityContextHolder.getContext();
+    String userId = context.getAuthentication().getName();
+
+    // 2. Tìm User trong DB
+    User user =
+        userRepository
+            .findById(userId)
+            .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+    // 3. Map sang DTO và bọc vào BaseResponse
+    UserResponse userResponse = mapToUserResponse(user);
+    return BaseResponse.ok(userResponse);
+  }
+
+  @Override
+  public BaseResponse<UserResponse> updateMyInfo(UserUpdateRequest request) {
+    // 1. Lấy username từ SecurityContext
+    var context = SecurityContextHolder.getContext();
+    String userId = context.getAuthentication().getName();
+
+    // 2. Tìm User
+    User user =
+        userRepository
+            .findById(userId)
+            .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+    // 3. Cập nhật thông tin
+    user.setFullName(request.getFullName());
+    user.setDisplayName(request.getDisplayName());
+    user.setEmail(request.getEmail());
+    user.setPhone(request.getPhone());
+    user.setPhotoUrl(request.getPhotoUrl());
+
+    User savedUser = userRepository.save(user);
+
+    return BaseResponse.ok(mapToUserResponse(savedUser));
+  }
+
+  private UserResponse mapToUserResponse(User user) {
+    return UserResponse.builder()
+        .id(user.getId())
+        .username(user.getUsername())
+        .fullName(user.getFullName())
+        .displayName(user.getDisplayName())
+        .email(user.getEmail())
+        .phone(user.getPhone())
+        .photoUrl(user.getPhotoUrl())
+        .currentBalance(user.getCurrentBalance())
+        .build();
+  }
 }

@@ -2,20 +2,20 @@ package com.financeai.finance_management.repository;
 
 import com.financeai.finance_management.entity.Category;
 import com.financeai.finance_management.enums.CategoryType;
+import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
-
 @Repository
-public interface CategoryRepository extends JpaRepository<Category, String>, JpaSpecificationExecutor<Category> {
+public interface CategoryRepository
+    extends JpaRepository<Category, String>, JpaSpecificationExecutor<Category> {
 
-    List<Category> findByUserId(String userId);
+  List<Category> findByUserId(String userId);
 
-    List<Category> findByUserIdAndType(String userId, String type);
+  List<Category> findByUserIdAndType(String userId, String type);
 
-    List<Category> findByUserIdAndTypeAndIsArchivedFalseAndIsActiveTrue(String userId, String type);
+  List<Category> findByUserIdAndTypeAndIsArchivedFalseAndIsActiveTrue(String userId, String type);
 
-    boolean existsByUserIdAndNameAndType(String userId, String name, CategoryType type);
+  boolean existsByUserIdAndNameAndType(String userId, String name, CategoryType type);
 }

@@ -9,5 +9,5 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class IntrospectRequest {
-    String token;
+  String token;
 }

@@ -1,12 +1,12 @@
 package com.financeai.finance_management.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import java.io.Serializable;
+import java.time.Instant;
+import java.util.List;
 import lombok.*;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
-
-import java.time.Instant;
-import java.util.List;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Getter
@@ -14,7 +14,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class BaseResponse<T> {
+public class BaseResponse<T> implements Serializable {
   private boolean success;
   private T data;
 
