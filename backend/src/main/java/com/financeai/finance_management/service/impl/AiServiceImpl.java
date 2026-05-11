@@ -64,48 +64,61 @@ public class AiServiceImpl implements IAiService {
   private String geminiModel;
 
   private static final Pattern MONEY_PATTERN =
-      Pattern.compile(
-          ".*\\d+\\s*(k|nghìn|ngàn|triệu|m|vnd|đ).*|.*\\d{4,}.*", Pattern.CASE_INSENSITIVE);
+          Pattern.compile(
+                  ".*\\d+\\s*(k|nghìn|ngàn|triệu|m|vnd|đ).*|.*\\d{4,}.*", Pattern.CASE_INSENSITIVE);
 
   private static final Set<String> QUERY_HINTS =
-      Set.of(
-          "bao nhiêu",
-          "tổng",
-          "số dư",
-          "còn",
-          "nhiều nhất",
-          "so với",
-          "tháng này",
-          "tháng trước",
-          "hôm nay",
-          "tuần này",
-          "tuần trước",
-          "gần đây",
-          "mới nhất",
-          "lớn nhất",
-          "vượt ngân sách",
-          "tiết kiệm",
-          "bất thường",
-          "khuyên",
-          "gợi ý",
-          "ngân sách");
+          Set.of(
+                  "bao nhiêu",
+                  "tổng",
+                  "số dư",
+                  "còn",
+                  "nhiều nhất",
+                  "so với",
+                  "tháng này",
+                  "tháng trước",
+                  "hôm nay",
+                  "tuần này",
+                  "tuần trước",
+                  "gần đây",
+                  "mới nhất",
+                  "lớn nhất",
+                  "vượt ngân sách",
+                  "tiết kiệm",
+                  "bất thường",
+                  "khuyên",
+                  "gợi ý",
+                  "ngân sách");
 
   private static final Set<String> TRANSACTION_HINTS =
-      Set.of(
-          "ăn",
-          "uống",
-          "mua",
-          "đóng",
-          "trả",
-          "đổ xăng",
-          "lương",
-          "thưởng",
-          "mẹ cho",
-          "nhặt được",
-          "nhận",
-          "chuyển khoản",
-          "thu",
-          "chi");
+          Set.of(
+                  "ăn",
+                  "uống",
+                  "mua",
+                  "đóng",
+                  "trả",
+                  "đổ xăng",
+                  "lương",
+                  "thưởng",
+                  "mẹ cho",
+                  "nhặt được",
+                  "nhận",
+                  "chuyển khoản",
+                  "thu",
+                  "chi");
+
+  private static final Set<String> BALANCE_ALIASES =
+          Set.of(
+                  "số dư",
+                  "còn dư",
+                  "dư bao nhiêu",
+                  "còn bao nhiêu tiền",
+                  "còn lại bao nhiêu",
+                  "còn lại bao nhiêu tiền",
+                  "dư tiền",
+                  "còn bao nhiêu");
+
+  private static final int SHORT_FOLLOW_UP_MAX_WORDS = 4;
 
   @Override
   public BaseResponse<SpendingTrendResponse> analyzeSpendingTrend() {
@@ -115,17 +128,17 @@ public class AiServiceImpl implements IAiService {
     List<Transaction> transactions = transactionRepository.findByUserId(userId);
 
     Map<YearMonth, Integer> monthlyExpenses =
-        transactions.stream()
-            .filter(transaction -> transaction.getType() == TransactionType.EXPENSE)
-            .collect(
-                Collectors.groupingBy(
-                    transaction -> {
-                      Instant instant = Instant.ofEpochMilli(transaction.getTransactionDate());
+            transactions.stream()
+                    .filter(transaction -> transaction.getType() == TransactionType.EXPENSE)
+                    .collect(
+                            Collectors.groupingBy(
+                                    transaction -> {
+                                      Instant instant = Instant.ofEpochMilli(transaction.getTransactionDate());
 
-                      return YearMonth.from(instant.atZone(ZoneId.systemDefault()));
-                    },
-                    TreeMap::new,
-                    Collectors.summingInt(transaction -> transaction.getAmount().intValue())));
+                                      return YearMonth.from(instant.atZone(ZoneId.systemDefault()));
+                                    },
+                                    TreeMap::new,
+                                    Collectors.summingInt(transaction -> transaction.getAmount().intValue())));
 
     List<Integer> expenses = new ArrayList<>(monthlyExpenses.values());
 
@@ -177,14 +190,14 @@ public class AiServiceImpl implements IAiService {
       txRequest.setCategoryId(mappedCategory.getId());
       txRequest.setNote(item.getDescription());
       txRequest.setTransactionDate(
-          item.getTransactionDate() != null
-              ? item.getTransactionDate()
-              : System.currentTimeMillis());
+              item.getTransactionDate() != null
+                      ? item.getTransactionDate()
+                      : System.currentTimeMillis());
       txRequest.setImageUrl(null);
       txRequest.setIsAuto(true);
 
       BaseResponse<TransactionResponse> savedResponse =
-          transactionService.createTransaction(txRequest);
+              transactionService.createTransaction(txRequest);
 
       if (savedResponse != null && savedResponse.getData() != null) {
         result.add(savedResponse.getData());
@@ -222,18 +235,22 @@ public class AiServiceImpl implements IAiService {
     try {
       String userId = budgetService.getCurrentUserId();
       List<String> history = aiChatMemoryService.getHistory(userId);
+      String message = request.getMessage();
+      String intentHint = detectIntentHint(message);
 
-      AiChatIntentResult chatIntent = analyzeChatMessageWithFallback(history, request.getMessage());
-      chatIntent = enrichChatIntentFromHistory(history, chatIntent, request.getMessage());
+      AiChatIntentResult chatIntent =
+              analyzeChatMessageWithFallback(history, message, intentHint);
+      chatIntent = enrichChatIntentFromHistory(history, chatIntent, message);
+      chatIntent = resolveFinalChatIntent(history, message, intentHint, chatIntent);
 
       AiChatResponse response = new AiChatResponse();
 
       if ("PARSE_TRANSACTION".equalsIgnoreCase(chatIntent.getMode())) {
         AiParseRequest parseRequest = new AiParseRequest();
-        parseRequest.setText(request.getMessage());
+        parseRequest.setText(message);
 
         BaseResponse<List<TransactionResponse>> parseResponse =
-            parseAndSaveTransaction(parseRequest);
+                parseAndSaveTransaction(parseRequest);
         List<TransactionResponse> savedTransactions = parseResponse.getData();
 
         response.setActionType("PARSE_TRANSACTION");
@@ -241,7 +258,7 @@ public class AiServiceImpl implements IAiService {
         response.setData(savedTransactions);
         response.setAnswer(buildParseAnswer(savedTransactions));
 
-        aiChatMemoryService.addUserMessage(userId, request.getMessage());
+        aiChatMemoryService.addUserMessage(userId, message);
         aiChatMemoryService.addBotMessage(userId, response.getAnswer());
 
         return BaseResponse.ok(response);
@@ -264,7 +281,7 @@ public class AiServiceImpl implements IAiService {
         response.setData(data);
         response.setAnswer(buildAnswer(intentResult, data));
 
-        aiChatMemoryService.addUserMessage(userId, request.getMessage());
+        aiChatMemoryService.addUserMessage(userId, message);
         aiChatMemoryService.addBotMessage(userId, response.getAnswer());
 
         return BaseResponse.ok(response);
@@ -274,15 +291,15 @@ public class AiServiceImpl implements IAiService {
       response.setIntent("UNKNOWN");
       response.setData(null);
       response.setAnswer(
-          """
-                    Mình chưa hiểu rõ ý bạn. Bạn có thể thử:
-                    - "Tháng này tôi chi bao nhiêu?"
-                    - "Ăn uống tháng này hết bao nhiêu?"
-                    - "Ăn sáng 35k"
-                    - "Ngân sách ăn uống còn bao nhiêu?"
-                    """);
+              """
+                        Mình chưa hiểu rõ ý bạn. Bạn có thể thử:
+                        - \"Tháng này tôi chi bao nhiêu?\"
+                        - \"Ăn uống tháng này hết bao nhiêu?\"
+                        - \"Ăn sáng 35k\"
+                        - \"Ngân sách ăn uống còn bao nhiêu?\"
+                        """);
 
-      aiChatMemoryService.addUserMessage(userId, request.getMessage());
+      aiChatMemoryService.addUserMessage(userId, message);
       aiChatMemoryService.addBotMessage(userId, response.getAnswer());
 
       return BaseResponse.ok(response);
@@ -300,8 +317,8 @@ public class AiServiceImpl implements IAiService {
 
   private void validateQueryRequest(AiQueryRequest request) {
     if (request == null
-        || request.getQuestion() == null
-        || request.getQuestion().trim().isEmpty()) {
+            || request.getQuestion() == null
+            || request.getQuestion().trim().isEmpty()) {
       throw new RuntimeException("Question không được để trống");
     }
   }
@@ -319,11 +336,11 @@ public class AiServiceImpl implements IAiService {
       HttpEntity<AiParseRequest> entity = new HttpEntity<>(requestBody, headers);
 
       ResponseEntity<List<AiParseResponse>> response =
-          restTemplate.exchange(
-              aiServiceUrl + "/parse-transaction",
-              HttpMethod.POST,
-              entity,
-              new ParameterizedTypeReference<>() {});
+              restTemplate.exchange(
+                      aiServiceUrl + "/parse-transaction",
+                      HttpMethod.POST,
+                      entity,
+                      new ParameterizedTypeReference<>() {});
 
       List<AiParseResponse> result = response.getBody();
       return result != null ? result : new ArrayList<>();
@@ -343,9 +360,10 @@ public class AiServiceImpl implements IAiService {
     }
   }
 
-  private AiChatIntentResult analyzeChatMessageWithFallback(List<String> history, String message) {
+  private AiChatIntentResult analyzeChatMessageWithFallback(
+          List<String> history, String message, String intentHint) {
     try {
-      AiChatIntentResult result = analyzeChatMessage(history, message);
+      AiChatIntentResult result = analyzeChatMessage(history, message, intentHint);
       normalizeChatIntentResult(result);
       return result;
     } catch (Exception e) {
@@ -357,53 +375,53 @@ public class AiServiceImpl implements IAiService {
     Client client = Client.builder().apiKey(geminiApiKey).build();
 
     String prompt =
-        """
-                Bạn là AI phân tích truy vấn tài chính cá nhân.
-
-                Nhiệm vụ:
-                - Đọc câu hỏi tiếng Việt của người dùng
-                - Trả về DUY NHẤT 1 JSON hợp lệ
-                - Không thêm markdown
-                - Không thêm giải thích
-                - Không thêm ký tự nào ngoài JSON
-
-                JSON có format:
-                {
-                  "intent": "",
-                  "category": "",
-                  "type": "",
-                  "timeRange": "",
-                  "keyword": ""
-                }
-
-                intent chỉ được thuộc 1 trong các giá trị sau:
-                - TOTAL_EXPENSE
-                - TOTAL_INCOME
-                - TOTAL_EXPENSE_BY_CATEGORY
-                - TOTAL_INCOME_BY_CATEGORY
-                - TOTAL_EXPENSE_BY_KEYWORD
-                - TOTAL_INCOME_BY_KEYWORD
-                - BALANCE
-                - TOP_EXPENSE_CATEGORY
-                - COMPARE_EXPENSE_THIS_MONTH_LAST_MONTH
-                - COMPARE_INCOME_THIS_MONTH_LAST_MONTH
-                - BUDGET_REMAINING
-                - BUDGET_WARNING
-                - ABNORMAL_EXPENSE_CHECK
-                - SPENDING_ADVICE
-                - SAVING_SUGGESTION
-                - RECENT_TRANSACTIONS
-
-                Quy ước:
-                - category: tên danh mục nếu có, không có thì để chuỗi rỗng
-                - type: EXPENSE hoặc INCOME, không có thì để chuỗi rỗng
-                - timeRange: TODAY, THIS_WEEK, LAST_WEEK, THIS_MONTH, LAST_MONTH, THIS_YEAR hoặc rỗng
-                - keyword: dùng cho note/mô tả như "mẹ cho", "nhặt được", "trà sữa"; nếu không có thì để chuỗi rỗng
-
-                Câu hỏi cần phân tích:
-                "%s"
-                """
-            .formatted(question.replace("\"", "\\\""));
+            """
+                    Bạn là AI phân tích truy vấn tài chính cá nhân.
+    
+                    Nhiệm vụ:
+                    - Đọc câu hỏi tiếng Việt của người dùng
+                    - Trả về DUY NHẤT 1 JSON hợp lệ
+                    - Không thêm markdown
+                    - Không thêm giải thích
+                    - Không thêm ký tự nào ngoài JSON
+    
+                    JSON có format:
+                    {
+                      \"intent\": \"\",
+                      \"category\": \"\",
+                      \"type\": \"\",
+                      \"timeRange\": \"\",
+                      \"keyword\": \"\"
+                    }
+    
+                    intent chỉ được thuộc 1 trong các giá trị sau:
+                    - TOTAL_EXPENSE
+                    - TOTAL_INCOME
+                    - TOTAL_EXPENSE_BY_CATEGORY
+                    - TOTAL_INCOME_BY_CATEGORY
+                    - TOTAL_EXPENSE_BY_KEYWORD
+                    - TOTAL_INCOME_BY_KEYWORD
+                    - BALANCE
+                    - TOP_EXPENSE_CATEGORY
+                    - COMPARE_EXPENSE_THIS_MONTH_LAST_MONTH
+                    - COMPARE_INCOME_THIS_MONTH_LAST_MONTH
+                    - BUDGET_REMAINING
+                    - BUDGET_WARNING
+                    - ABNORMAL_EXPENSE_CHECK
+                    - SPENDING_ADVICE
+                    - SAVING_SUGGESTION
+                    - RECENT_TRANSACTIONS
+    
+                    Quy ước:
+                    - category: tên danh mục nếu có, không có thì để chuỗi rỗng
+                    - type: EXPENSE hoặc INCOME, không có thì để chuỗi rỗng
+                    - timeRange: TODAY, THIS_WEEK, LAST_WEEK, THIS_MONTH, LAST_MONTH, THIS_YEAR hoặc rỗng
+                    - keyword: dùng cho note/mô tả như \"mẹ cho\", \"nhặt được\", \"trà sữa\"; nếu không có thì để chuỗi rỗng
+    
+                    Câu hỏi cần phân tích:
+                    \"%s\"
+                    """
+                    .formatted(question.replace("\"", "\\\""));
 
     GenerateContentResponse response = client.models.generateContent(geminiModel, prompt, null);
 
@@ -413,76 +431,87 @@ public class AiServiceImpl implements IAiService {
     return objectMapper.readValue(cleanedJson, AiIntentResult.class);
   }
 
-  private AiChatIntentResult analyzeChatMessage(List<String> history, String message)
-      throws Exception {
+  private AiChatIntentResult analyzeChatMessage(
+          List<String> history, String message, String intentHint) throws Exception {
     Client client = Client.builder().apiKey(geminiApiKey).build();
 
     String historyText =
-        (history == null || history.isEmpty())
-            ? "Không có lịch sử hội thoại."
-            : String.join("\n", history);
+            (history == null || history.isEmpty())
+                    ? "Không có lịch sử hội thoại."
+                    : String.join("\n", history);
 
     String prompt =
-        """
-                Bạn là AI phân loại message trong chatbot tài chính cá nhân.
-
-                Nhiệm vụ:
-                - Dựa vào lịch sử hội thoại và câu mới nhất của user
-                - Xác định user đang:
-                  1. nhập giao dịch
-                  2. hỏi truy vấn tài chính
-                - Trả về DUY NHẤT 1 JSON hợp lệ
-                - Không thêm markdown
-                - Không thêm giải thích
-                - Không thêm ký tự ngoài JSON
-
-                JSON format:
-                {
-                  "mode": "",
-                  "intent": "",
-                  "category": "",
-                  "type": "",
-                  "timeRange": "",
-                  "keyword": ""
-                }
-
-                mode chỉ được là:
-                - PARSE_TRANSACTION
-                - QUERY
-
-                intent chỉ dùng khi mode = QUERY:
-                - TOTAL_EXPENSE
-                - TOTAL_INCOME
-                - TOTAL_EXPENSE_BY_CATEGORY
-                - TOTAL_INCOME_BY_CATEGORY
-                - TOTAL_EXPENSE_BY_KEYWORD
-                - TOTAL_INCOME_BY_KEYWORD
-                - BALANCE
-                - TOP_EXPENSE_CATEGORY
-                - COMPARE_EXPENSE_THIS_MONTH_LAST_MONTH
-                - COMPARE_INCOME_THIS_MONTH_LAST_MONTH
-                - BUDGET_REMAINING
-                - BUDGET_WARNING
-                - ABNORMAL_EXPENSE_CHECK
-                - SPENDING_ADVICE
-                - SAVING_SUGGESTION
-                - RECENT_TRANSACTIONS
-
-                Quy ước:
-                - Nếu user đang nhập giao dịch kiểu "hôm nay ăn sáng 50k", "mẹ cho 300k", chọn mode = PARSE_TRANSACTION
-                - Nếu user đang hỏi kiểu "tháng này tôi chi bao nhiêu", "còn ăn uống thì sao", chọn mode = QUERY
-                - category: dùng cho danh mục như ăn uống, mua sắm, lương...
-                - keyword: dùng cho note/mô tả như mẹ cho, nhặt được, trà sữa...
-                - type: EXPENSE / INCOME / ""
-                - timeRange: TODAY / THIS_WEEK / LAST_WEEK / THIS_MONTH / LAST_MONTH / THIS_YEAR / ""
-
-                Lịch sử hội thoại:
-                %s
-
-                Câu mới nhất:
-                "%s"
-                """
-            .formatted(historyText, message.replace("\"", "\\\""));
+            """
+                    Bạn là AI phân loại message trong chatbot tài chính cá nhân.
+    
+                    Nhiệm vụ:
+                    - Dựa vào lịch sử hội thoại và câu mới nhất của user
+                    - Xác định user đang:
+                      1. nhập giao dịch
+                      2. hỏi truy vấn tài chính
+                    - Trả về DUY NHẤT 1 JSON hợp lệ
+                    - Không thêm markdown
+                    - Không thêm giải thích
+                    - Không thêm ký tự ngoài JSON
+    
+                    JSON format:
+                    {
+                      \"mode\": \"\",
+                      \"intent\": \"\",
+                      \"category\": \"\",
+                      \"type\": \"\",
+                      \"timeRange\": \"\",
+                      \"keyword\": \"\"
+                    }
+    
+                    mode chỉ được là:
+                    - PARSE_TRANSACTION
+                    - QUERY
+    
+                    intent chỉ dùng khi mode = QUERY:
+                    - TOTAL_EXPENSE
+                    - TOTAL_INCOME
+                    - TOTAL_EXPENSE_BY_CATEGORY
+                    - TOTAL_INCOME_BY_CATEGORY
+                    - TOTAL_EXPENSE_BY_KEYWORD
+                    - TOTAL_INCOME_BY_KEYWORD
+                    - BALANCE
+                    - TOP_EXPENSE_CATEGORY
+                    - COMPARE_EXPENSE_THIS_MONTH_LAST_MONTH
+                    - COMPARE_INCOME_THIS_MONTH_LAST_MONTH
+                    - BUDGET_REMAINING
+                    - BUDGET_WARNING
+                    - ABNORMAL_EXPENSE_CHECK
+                    - SPENDING_ADVICE
+                    - SAVING_SUGGESTION
+                    - RECENT_TRANSACTIONS
+    
+                    Quy tắc rất quan trọng:
+                    - Nếu câu hiện tại là follow-up ngắn như \"còn dư\", \"số dư\", \"còn lại bao nhiêu\", \"dư bao nhiêu\"
+                      thì ưu tiên intent = BALANCE.
+                    - Nếu backend_hint = BALANCE_HINT thì chỉ được chọn intent khác BALANCE khi có bằng chứng rất mạnh.
+                    - Nếu câu hiện tại ngắn và mơ hồ, hãy kế thừa timeRange từ lịch sử hội thoại nếu hợp lý.
+                    - Nếu user đang nhập kiểu \"ăn sáng 35k\", \"mẹ cho 300k\", \"đổ xăng 50k\" thì chọn PARSE_TRANSACTION.
+    
+                    Quy ước:
+                    - category: dùng cho danh mục như ăn uống, mua sắm, lương...
+                    - keyword: dùng cho note/mô tả như mẹ cho, nhặt được, trà sữa...
+                    - type: EXPENSE / INCOME / \"\"
+                    - timeRange: TODAY / THIS_WEEK / LAST_WEEK / THIS_MONTH / LAST_MONTH / THIS_YEAR / \"\"
+    
+                    Backend hint:
+                    %s
+    
+                    Lịch sử hội thoại:
+                    %s
+    
+                    Câu mới nhất:
+                    \"%s\"
+                    """
+                    .formatted(
+                            intentHint == null || intentHint.isBlank() ? "NONE" : intentHint,
+                            historyText,
+                            message.replace("\"", "\\\""));
 
     GenerateContentResponse response = client.models.generateContent(geminiModel, prompt, null);
 
@@ -497,12 +526,12 @@ public class AiServiceImpl implements IAiService {
     AiIntentResult result = new AiIntentResult();
 
     if (containsAny(
-        text,
-        "giao dịch gần đây",
-        "giao dịch mới nhất",
-        "5 khoản chi gần nhất",
-        "gần đây",
-        "mới nhất")) {
+            text,
+            "giao dịch gần đây",
+            "giao dịch mới nhất",
+            "5 khoản chi gần nhất",
+            "gần đây",
+            "mới nhất")) {
       result.setIntent("RECENT_TRANSACTIONS");
       if (containsAny(text, "chi")) {
         result.setType("EXPENSE");
@@ -543,7 +572,7 @@ public class AiServiceImpl implements IAiService {
     }
 
     if (containsAny(
-        text, "so với tháng trước", "tháng này so với tháng trước", "tuần này so với tuần trước")) {
+            text, "so với tháng trước", "tháng này so với tháng trước", "tuần này so với tuần trước")) {
       if (containsAny(text, "thu", "nhận", "lương")) {
         result.setIntent("COMPARE_INCOME_THIS_MONTH_LAST_MONTH");
         result.setType("INCOME");
@@ -561,7 +590,7 @@ public class AiServiceImpl implements IAiService {
       return result;
     }
 
-    if (containsAny(text, "số dư", "còn lại bao nhiêu")) {
+    if (containsAny(text, BALANCE_ALIASES.toArray(new String[0]))) {
       result.setIntent("BALANCE");
       applyTimeRange(text, result);
       return result;
@@ -612,9 +641,15 @@ public class AiServiceImpl implements IAiService {
     String text = normalize(message);
     AiChatIntentResult result = new AiChatIntentResult();
 
+    if (containsAny(text, BALANCE_ALIASES.toArray(new String[0]))) {
+      result.setMode("QUERY");
+      result.setIntent("BALANCE");
+      return result;
+    }
+
     boolean looksLikeQuery = QUERY_HINTS.stream().anyMatch(text::contains);
     boolean looksLikeTransaction =
-        containsMoney(text) || TRANSACTION_HINTS.stream().anyMatch(text::contains);
+            containsMoney(text) || TRANSACTION_HINTS.stream().anyMatch(text::contains);
 
     if (looksLikeQuery && !looksLikePureTransaction(text)) {
       AiIntentResult queryIntent = buildRuleBasedIntent(message);
@@ -646,13 +681,18 @@ public class AiServiceImpl implements IAiService {
   }
 
   private AiChatIntentResult enrichChatIntentFromHistory(
-      List<String> history, AiChatIntentResult current, String message) {
+          List<String> history, AiChatIntentResult current, String message) {
     if (current == null) {
       return null;
     }
 
     String text = normalize(message);
     String mergedHistory = history == null ? "" : normalize(String.join(" ", history));
+
+    if (containsAny(text, BALANCE_ALIASES.toArray(new String[0]))) {
+      current.setMode("QUERY");
+      current.setIntent("BALANCE");
+    }
 
     if (isBlank(current.getTimeRange())) {
       if (containsAny(text, "hôm nay")) {
@@ -703,6 +743,35 @@ public class AiServiceImpl implements IAiService {
     return current;
   }
 
+  private AiChatIntentResult resolveFinalChatIntent(
+          List<String> history,
+          String message,
+          String intentHint,
+          AiChatIntentResult current) {
+
+    if (current == null) {
+      return null;
+    }
+
+    String text = normalize(message);
+
+    if ("BALANCE_HINT".equals(intentHint)) {
+      current.setMode("QUERY");
+      current.setIntent("BALANCE");
+      return current;
+    }
+
+    if (isShortFollowUp(text)
+            && containsAny(text, "còn", "dư", "số dư", "còn lại")
+            && hasFinancialContext(history)) {
+      current.setMode("QUERY");
+      current.setIntent("BALANCE");
+      return current;
+    }
+
+    return current;
+  }
+
   private void normalizeIntentResult(AiIntentResult result) {
     if (result == null) return;
 
@@ -737,80 +806,80 @@ public class AiServiceImpl implements IAiService {
 
     return switch (intent) {
       case "TOTAL_EXPENSE" ->
-          nvl(
-              transactionRepository.sumByUserIdAndTypeAndDateRange(
-                  userId,
-                  TransactionType.EXPENSE,
-                  range.getStartEpochMilli(),
-                  range.getEndEpochMilli()));
+              nvl(
+                      transactionRepository.sumByUserIdAndTypeAndDateRange(
+                              userId,
+                              TransactionType.EXPENSE,
+                              range.getStartEpochMilli(),
+                              range.getEndEpochMilli()));
 
       case "TOTAL_INCOME" ->
-          nvl(
-              transactionRepository.sumByUserIdAndTypeAndDateRange(
-                  userId,
-                  TransactionType.INCOME,
-                  range.getStartEpochMilli(),
-                  range.getEndEpochMilli()));
+              nvl(
+                      transactionRepository.sumByUserIdAndTypeAndDateRange(
+                              userId,
+                              TransactionType.INCOME,
+                              range.getStartEpochMilli(),
+                              range.getEndEpochMilli()));
 
       case "BALANCE" -> {
         BigDecimal income =
-            nvl(
-                transactionRepository.sumByUserIdAndTypeAndDateRange(
-                    userId,
-                    TransactionType.INCOME,
-                    range.getStartEpochMilli(),
-                    range.getEndEpochMilli()));
+                nvl(
+                        transactionRepository.sumByUserIdAndTypeAndDateRange(
+                                userId,
+                                TransactionType.INCOME,
+                                range.getStartEpochMilli(),
+                                range.getEndEpochMilli()));
 
         BigDecimal expense =
-            nvl(
-                transactionRepository.sumByUserIdAndTypeAndDateRange(
-                    userId,
-                    TransactionType.EXPENSE,
-                    range.getStartEpochMilli(),
-                    range.getEndEpochMilli()));
+                nvl(
+                        transactionRepository.sumByUserIdAndTypeAndDateRange(
+                                userId,
+                                TransactionType.EXPENSE,
+                                range.getStartEpochMilli(),
+                                range.getEndEpochMilli()));
 
         yield income.subtract(expense);
       }
 
       case "TOTAL_EXPENSE_BY_CATEGORY" -> {
         Category category =
-            findMatchedCategory(userId, intentResult.getCategory(), CategoryType.EXPENSE);
+                findMatchedCategory(userId, intentResult.getCategory(), CategoryType.EXPENSE);
 
         if (category != null) {
           BigDecimal total =
-              transactionRepository.sumByUserIdAndTypeAndCategoryIdAndDateRange(
-                  userId,
-                  TransactionType.EXPENSE,
-                  category.getId(),
-                  range.getStartEpochMilli(),
-                  range.getEndEpochMilli());
+                  transactionRepository.sumByUserIdAndTypeAndCategoryIdAndDateRange(
+                          userId,
+                          TransactionType.EXPENSE,
+                          category.getId(),
+                          range.getStartEpochMilli(),
+                          range.getEndEpochMilli());
           yield nvl(total);
         }
 
         BigDecimal total =
-            transactionRepository.sumByKeyword(
-                userId, TransactionType.EXPENSE, intentResult.getCategory());
+                transactionRepository.sumByKeyword(
+                        userId, TransactionType.EXPENSE, intentResult.getCategory());
         yield nvl(total);
       }
 
       case "TOTAL_INCOME_BY_CATEGORY" -> {
         Category category =
-            findMatchedCategory(userId, intentResult.getCategory(), CategoryType.INCOME);
+                findMatchedCategory(userId, intentResult.getCategory(), CategoryType.INCOME);
 
         if (category != null) {
           BigDecimal total =
-              transactionRepository.sumByUserIdAndTypeAndCategoryIdAndDateRange(
-                  userId,
-                  TransactionType.INCOME,
-                  category.getId(),
-                  range.getStartEpochMilli(),
-                  range.getEndEpochMilli());
+                  transactionRepository.sumByUserIdAndTypeAndCategoryIdAndDateRange(
+                          userId,
+                          TransactionType.INCOME,
+                          category.getId(),
+                          range.getStartEpochMilli(),
+                          range.getEndEpochMilli());
           yield nvl(total);
         }
 
         BigDecimal total =
-            transactionRepository.sumByKeyword(
-                userId, TransactionType.INCOME, intentResult.getCategory());
+                transactionRepository.sumByKeyword(
+                        userId, TransactionType.INCOME, intentResult.getCategory());
         yield nvl(total);
       }
 
@@ -822,7 +891,7 @@ public class AiServiceImpl implements IAiService {
         }
 
         BigDecimal total =
-            transactionRepository.sumByKeyword(userId, TransactionType.INCOME, keyword.trim());
+                transactionRepository.sumByKeyword(userId, TransactionType.INCOME, keyword.trim());
 
         yield nvl(total);
       }
@@ -835,7 +904,7 @@ public class AiServiceImpl implements IAiService {
         }
 
         BigDecimal total =
-            transactionRepository.sumByKeyword(userId, TransactionType.EXPENSE, keyword.trim());
+                transactionRepository.sumByKeyword(userId, TransactionType.EXPENSE, keyword.trim());
 
         yield nvl(total);
       }
@@ -843,10 +912,10 @@ public class AiServiceImpl implements IAiService {
       case "TOP_EXPENSE_CATEGORY" -> getTopExpenseCategory(userId, range);
 
       case "COMPARE_EXPENSE_THIS_MONTH_LAST_MONTH" ->
-          buildCompareResult(userId, TransactionType.EXPENSE);
+              buildCompareResult(userId, TransactionType.EXPENSE);
 
       case "COMPARE_INCOME_THIS_MONTH_LAST_MONTH" ->
-          buildCompareResult(userId, TransactionType.INCOME);
+              buildCompareResult(userId, TransactionType.INCOME);
 
       case "ABNORMAL_EXPENSE_CHECK" -> checkAbnormalExpense(userId);
 
@@ -866,22 +935,22 @@ public class AiServiceImpl implements IAiService {
 
   private TopCategoryResult getTopExpenseCategory(String userId, LocalDateRange range) {
     List<Category> categories =
-        categoryRepository.findByUserId(userId).stream()
-            .filter(c -> c.getType() == CategoryType.EXPENSE)
-            .toList();
+            categoryRepository.findByUserId(userId).stream()
+                    .filter(c -> c.getType() == CategoryType.EXPENSE)
+                    .toList();
 
     String topCategoryName = null;
     BigDecimal max = BigDecimal.ZERO;
 
     for (Category category : categories) {
       BigDecimal total =
-          nvl(
-              transactionRepository.sumByUserIdAndTypeAndCategoryIdAndDateRange(
-                  userId,
-                  TransactionType.EXPENSE,
-                  category.getId(),
-                  range.getStartEpochMilli(),
-                  range.getEndEpochMilli()));
+              nvl(
+                      transactionRepository.sumByUserIdAndTypeAndCategoryIdAndDateRange(
+                              userId,
+                              TransactionType.EXPENSE,
+                              category.getId(),
+                              range.getStartEpochMilli(),
+                              range.getEndEpochMilli()));
 
       if (total.compareTo(max) > 0) {
         max = total;
@@ -900,14 +969,14 @@ public class AiServiceImpl implements IAiService {
     LocalDateRange lastMonth = resolveTimeRange("LAST_MONTH");
 
     BigDecimal current =
-        nvl(
-            transactionRepository.sumByUserIdAndTypeAndDateRange(
-                userId, type, thisMonth.getStartEpochMilli(), thisMonth.getEndEpochMilli()));
+            nvl(
+                    transactionRepository.sumByUserIdAndTypeAndDateRange(
+                            userId, type, thisMonth.getStartEpochMilli(), thisMonth.getEndEpochMilli()));
 
     BigDecimal previous =
-        nvl(
-            transactionRepository.sumByUserIdAndTypeAndDateRange(
-                userId, type, lastMonth.getStartEpochMilli(), lastMonth.getEndEpochMilli()));
+            nvl(
+                    transactionRepository.sumByUserIdAndTypeAndDateRange(
+                            userId, type, lastMonth.getStartEpochMilli(), lastMonth.getEndEpochMilli()));
 
     CompareResult result = new CompareResult();
     result.setCurrent(current);
@@ -922,9 +991,9 @@ public class AiServiceImpl implements IAiService {
     LocalDateRange lastMonth = resolveTimeRange("LAST_MONTH");
 
     List<Category> expenseCategories =
-        categoryRepository.findByUserId(userId).stream()
-            .filter(c -> c.getType() == CategoryType.EXPENSE)
-            .toList();
+            categoryRepository.findByUserId(userId).stream()
+                    .filter(c -> c.getType() == CategoryType.EXPENSE)
+                    .toList();
 
     String abnormalCategory = null;
     BigDecimal abnormalDiff = BigDecimal.ZERO;
@@ -933,22 +1002,22 @@ public class AiServiceImpl implements IAiService {
 
     for (Category category : expenseCategories) {
       BigDecimal current =
-          nvl(
-              transactionRepository.sumByUserIdAndTypeAndCategoryIdAndDateRange(
-                  userId,
-                  TransactionType.EXPENSE,
-                  category.getId(),
-                  thisMonth.getStartEpochMilli(),
-                  thisMonth.getEndEpochMilli()));
+              nvl(
+                      transactionRepository.sumByUserIdAndTypeAndCategoryIdAndDateRange(
+                              userId,
+                              TransactionType.EXPENSE,
+                              category.getId(),
+                              thisMonth.getStartEpochMilli(),
+                              thisMonth.getEndEpochMilli()));
 
       BigDecimal previous =
-          nvl(
-              transactionRepository.sumByUserIdAndTypeAndCategoryIdAndDateRange(
-                  userId,
-                  TransactionType.EXPENSE,
-                  category.getId(),
-                  lastMonth.getStartEpochMilli(),
-                  lastMonth.getEndEpochMilli()));
+              nvl(
+                      transactionRepository.sumByUserIdAndTypeAndCategoryIdAndDateRange(
+                              userId,
+                              TransactionType.EXPENSE,
+                              category.getId(),
+                              lastMonth.getStartEpochMilli(),
+                              lastMonth.getEndEpochMilli()));
 
       BigDecimal diff = current.subtract(previous);
       if (diff.compareTo(abnormalDiff) > 0) {
@@ -982,11 +1051,11 @@ public class AiServiceImpl implements IAiService {
 
     result.setTitle("Gợi ý chi tiêu");
     result.setMessage(
-        "Danh mục chi lớn nhất hiện tại là "
-            + top.getCategoryName()
-            + " với "
-            + formatMoney(top.getAmount())
-            + ". Bạn nên kiểm tra và ưu tiên tối ưu danh mục này trước.");
+            "Danh mục chi lớn nhất hiện tại là "
+                    + top.getCategoryName()
+                    + " với "
+                    + formatMoney(top.getAmount())
+                    + ". Bạn nên kiểm tra và ưu tiên tối ưu danh mục này trước.");
     return result;
   }
 
@@ -1004,14 +1073,14 @@ public class AiServiceImpl implements IAiService {
 
     result.setTitle("Gợi ý tiết kiệm");
     result.setMessage(
-        "Nếu muốn tiết kiệm nhiều hơn trong tháng này, bạn nên cân nhắc giảm chi ở nhóm "
-            + top.getCategoryName()
-            + " vì đây là danh mục đang tốn nhiều nhất.");
+            "Nếu muốn tiết kiệm nhiều hơn trong tháng này, bạn nên cân nhắc giảm chi ở nhóm "
+                    + top.getCategoryName()
+                    + " vì đây là danh mục đang tốn nhiều nhất.");
     return result;
   }
 
   private BudgetInsightResult buildBudgetRemainingResult(
-      String userId, AiIntentResult intentResult) {
+          String userId, AiIntentResult intentResult) {
     BudgetInsightResult result = new BudgetInsightResult();
     result.setTitle("Ngân sách còn lại");
 
@@ -1041,18 +1110,18 @@ public class AiServiceImpl implements IAiService {
     BigDecimal spent;
     if (!isBlank(budget.getCategoryId())) {
       spent =
-          nvl(
-              transactionRepository.sumByUserIdAndTypeAndCategoryIdAndDateRange(
-                  userId,
-                  TransactionType.EXPENSE,
-                  budget.getCategoryId(),
-                  budget.getStartDate(),
-                  budget.getEndDate()));
+              nvl(
+                      transactionRepository.sumByUserIdAndTypeAndCategoryIdAndDateRange(
+                              userId,
+                              TransactionType.EXPENSE,
+                              budget.getCategoryId(),
+                              budget.getStartDate(),
+                              budget.getEndDate()));
     } else {
       spent =
-          nvl(
-              transactionRepository.sumByUserIdAndTypeAndDateRange(
-                  userId, TransactionType.EXPENSE, budget.getStartDate(), budget.getEndDate()));
+              nvl(
+                      transactionRepository.sumByUserIdAndTypeAndDateRange(
+                              userId, TransactionType.EXPENSE, budget.getStartDate(), budget.getEndDate()));
     }
 
     BigDecimal remaining = target.subtract(spent);
@@ -1069,15 +1138,15 @@ public class AiServiceImpl implements IAiService {
     result.setUsedPercent(usedPercent);
 
     result.setMessage(
-        "Bạn đã dùng "
-            + formatMoney(spent)
-            + " / "
-            + formatMoney(target)
-            + ", còn lại "
-            + formatMoney(remaining)
-            + " ("
-            + usedPercent.stripTrailingZeros().toPlainString()
-            + "% đã sử dụng).");
+            "Bạn đã dùng "
+                    + formatMoney(spent)
+                    + " / "
+                    + formatMoney(target)
+                    + ", còn lại "
+                    + formatMoney(remaining)
+                    + " ("
+                    + usedPercent.stripTrailingZeros().toPlainString()
+                    + "% đã sử dụng).");
 
     return result;
   }
@@ -1112,18 +1181,18 @@ public class AiServiceImpl implements IAiService {
     BigDecimal spent;
     if (!isBlank(budget.getCategoryId())) {
       spent =
-          nvl(
-              transactionRepository.sumByUserIdAndTypeAndCategoryIdAndDateRange(
-                  userId,
-                  TransactionType.EXPENSE,
-                  budget.getCategoryId(),
-                  budget.getStartDate(),
-                  budget.getEndDate()));
+              nvl(
+                      transactionRepository.sumByUserIdAndTypeAndCategoryIdAndDateRange(
+                              userId,
+                              TransactionType.EXPENSE,
+                              budget.getCategoryId(),
+                              budget.getStartDate(),
+                              budget.getEndDate()));
     } else {
       spent =
-          nvl(
-              transactionRepository.sumByUserIdAndTypeAndDateRange(
-                  userId, TransactionType.EXPENSE, budget.getStartDate(), budget.getEndDate()));
+              nvl(
+                      transactionRepository.sumByUserIdAndTypeAndDateRange(
+                              userId, TransactionType.EXPENSE, budget.getStartDate(), budget.getEndDate()));
     }
 
     BigDecimal remaining = target.subtract(spent);
@@ -1141,37 +1210,37 @@ public class AiServiceImpl implements IAiService {
     if (spent.compareTo(target) > 0) {
       result.setStatus("EXCEEDED");
       result.setMessage(
-          "Bạn đã vượt ngân sách "
-              + formatMoney(spent.subtract(target))
-              + ". Tổng chi hiện tại là "
-              + formatMoney(spent)
-              + " trên ngân sách "
-              + formatMoney(target)
-              + ".");
+              "Bạn đã vượt ngân sách "
+                      + formatMoney(spent.subtract(target))
+                      + ". Tổng chi hiện tại là "
+                      + formatMoney(spent)
+                      + " trên ngân sách "
+                      + formatMoney(target)
+                      + ".");
       return result;
     }
 
     if (usedPercent.compareTo(BigDecimal.valueOf(80)) >= 0) {
       result.setStatus("WARNING");
       result.setMessage(
-          "Bạn đã dùng "
-              + usedPercent.stripTrailingZeros().toPlainString()
-              + "% ngân sách. Còn lại "
-              + formatMoney(remaining)
-              + ".");
+              "Bạn đã dùng "
+                      + usedPercent.stripTrailingZeros().toPlainString()
+                      + "% ngân sách. Còn lại "
+                      + formatMoney(remaining)
+                      + ".");
       return result;
     }
 
     result.setStatus("SAFE");
     result.setMessage(
-        "Ngân sách vẫn an toàn. Hiện mới dùng "
-            + usedPercent.stripTrailingZeros().toPlainString()
-            + "%.");
+            "Ngân sách vẫn an toàn. Hiện mới dùng "
+                    + usedPercent.stripTrailingZeros().toPlainString()
+                    + "%.");
     return result;
   }
 
   private RecentTransactionsResult buildRecentTransactionsResult(
-      String userId, AiIntentResult intentResult) {
+          String userId, AiIntentResult intentResult) {
     RecentTransactionsResult result = new RecentTransactionsResult();
     result.setTitle("Giao dịch gần đây");
 
@@ -1214,19 +1283,19 @@ public class AiServiceImpl implements IAiService {
     @SuppressWarnings("unchecked")
     Map<String, Object> first = (Map<String, Object>) items.get(0);
     result.setMessage(
-        "Có "
-            + items.size()
-            + " giao dịch gần nhất. "
-            + "Gần nhất là "
-            + first.get("formattedAmount")
-            + (first.get("note") != null ? " - " + first.get("note") : "")
-            + ".");
+            "Có "
+                    + items.size()
+                    + " giao dịch gần nhất. "
+                    + "Gần nhất là "
+                    + first.get("formattedAmount")
+                    + (first.get("note") != null ? " - " + first.get("note") : "")
+                    + ".");
 
     return result;
   }
 
   private Category findMatchedCategory(
-      String userId, String categoryName, CategoryType categoryType) {
+          String userId, String categoryName, CategoryType categoryType) {
     if (categoryName == null || categoryName.trim().isEmpty()) {
       return null;
     }
@@ -1234,15 +1303,15 @@ public class AiServiceImpl implements IAiService {
     String input = normalize(categoryName);
 
     return categoryRepository.findByUserId(userId).stream()
-        .filter(c -> c.getType() == categoryType)
-        .filter(
-            c -> {
-              String db = normalize(c.getName());
-              return !db.isEmpty()
-                  && (db.equals(input) || db.contains(input) || input.contains(db));
-            })
-        .findFirst()
-        .orElse(null);
+            .filter(c -> c.getType() == categoryType)
+            .filter(
+                    c -> {
+                      String db = normalize(c.getName());
+                      return !db.isEmpty()
+                              && (db.equals(input) || db.contains(input) || input.contains(db));
+                    })
+            .findFirst()
+            .orElse(null);
   }
 
   private Category mapCategory(String aiCategory, String type) {
@@ -1274,8 +1343,8 @@ public class AiServiceImpl implements IAiService {
 
       String dbName = normalize(category.getName());
       if (!dbName.isEmpty()
-          && !normalizedCategory.isEmpty()
-          && (dbName.contains(normalizedCategory) || normalizedCategory.contains(dbName))) {
+              && !normalizedCategory.isEmpty()
+              && (dbName.contains(normalizedCategory) || normalizedCategory.contains(dbName))) {
         return category;
       }
     }
@@ -1286,7 +1355,7 @@ public class AiServiceImpl implements IAiService {
     }
 
     throw new RuntimeException(
-        "Không map được category AI và user chưa có category 'Khác' cho type: " + type);
+            "Không map được category AI và user chưa có category 'Khác' cho type: " + type);
   }
 
   private boolean isValidAiItem(AiParseResponse item) {
@@ -1313,9 +1382,9 @@ public class AiServiceImpl implements IAiService {
 
       String name = normalize(category.getName());
       if (name.contains("khác")
-          || name.equals("other")
-          || name.equals("other expense")
-          || name.equals("other income")) {
+              || name.equals("other")
+              || name.equals("other expense")
+              || name.equals("other income")) {
         return category;
       }
     }
@@ -1328,63 +1397,63 @@ public class AiServiceImpl implements IAiService {
 
     return switch (intent) {
       case "TOTAL_EXPENSE" ->
-          (timeText.isBlank() ? "Tổng chi của bạn là " : "Tổng chi " + timeText + " của bạn là ")
-              + formatMoney((BigDecimal) data)
-              + ".";
+              (timeText.isBlank() ? "Tổng chi của bạn là " : "Tổng chi " + timeText + " của bạn là ")
+                      + formatMoney((BigDecimal) data)
+                      + ".";
 
       case "TOTAL_INCOME" ->
-          (timeText.isBlank() ? "Tổng thu của bạn là " : "Tổng thu " + timeText + " của bạn là ")
-              + formatMoney((BigDecimal) data)
-              + ".";
+              (timeText.isBlank() ? "Tổng thu của bạn là " : "Tổng thu " + timeText + " của bạn là ")
+                      + formatMoney((BigDecimal) data)
+                      + ".";
 
       case "BALANCE" ->
-          (timeText.isBlank() ? "Số dư hiện tại của bạn là " : "Số dư " + timeText + " của bạn là ")
-              + formatMoney((BigDecimal) data)
-              + ".";
+              (timeText.isBlank() ? "Số dư hiện tại của bạn là " : "Số dư " + timeText + " của bạn là ")
+                      + formatMoney((BigDecimal) data)
+                      + ".";
 
       case "TOTAL_EXPENSE_BY_CATEGORY" ->
-          "Bạn đã chi "
-              + formatMoney((BigDecimal) data)
-              + (timeText.isBlank() ? "" : " trong " + timeText)
-              + " cho danh mục "
-              + safeText(intentResult.getCategory())
-              + ".";
+              "Bạn đã chi "
+                      + formatMoney((BigDecimal) data)
+                      + (timeText.isBlank() ? "" : " trong " + timeText)
+                      + " cho danh mục "
+                      + safeText(intentResult.getCategory())
+                      + ".";
 
       case "TOTAL_INCOME_BY_CATEGORY" ->
-          "Bạn đã thu "
-              + formatMoney((BigDecimal) data)
-              + (timeText.isBlank() ? "" : " trong " + timeText)
-              + " từ danh mục "
-              + safeText(intentResult.getCategory())
-              + ".";
+              "Bạn đã thu "
+                      + formatMoney((BigDecimal) data)
+                      + (timeText.isBlank() ? "" : " trong " + timeText)
+                      + " từ danh mục "
+                      + safeText(intentResult.getCategory())
+                      + ".";
 
       case "TOTAL_EXPENSE_BY_KEYWORD" ->
-          "Bạn đã chi "
-              + formatMoney((BigDecimal) data)
-              + " cho nội dung \""
-              + safeText(intentResult.getKeyword())
-              + "\".";
+              "Bạn đã chi "
+                      + formatMoney((BigDecimal) data)
+                      + " cho nội dung \""
+                      + safeText(intentResult.getKeyword())
+                      + "\".";
 
       case "TOTAL_INCOME_BY_KEYWORD" ->
-          "Bạn đã nhận "
-              + formatMoney((BigDecimal) data)
-              + " từ nội dung \""
-              + safeText(intentResult.getKeyword())
-              + "\".";
+              "Bạn đã nhận "
+                      + formatMoney((BigDecimal) data)
+                      + " từ nội dung \""
+                      + safeText(intentResult.getKeyword())
+                      + "\".";
 
       case "TOP_EXPENSE_CATEGORY" -> {
         TopCategoryResult top = (TopCategoryResult) data;
         yield "Danh mục chi nhiều nhất"
-            + (timeText.isBlank() ? "" : " trong " + timeText)
-            + " là "
-            + top.getCategoryName()
-            + " với "
-            + formatMoney(top.getAmount())
-            + ".";
+                + (timeText.isBlank() ? "" : " trong " + timeText)
+                + " là "
+                + top.getCategoryName()
+                + " với "
+                + formatMoney(top.getAmount())
+                + ".";
       }
 
       case "COMPARE_EXPENSE_THIS_MONTH_LAST_MONTH", "COMPARE_INCOME_THIS_MONTH_LAST_MONTH" ->
-          buildCompareAnswer((CompareResult) data);
+              buildCompareAnswer((CompareResult) data);
 
       case "ABNORMAL_EXPENSE_CHECK" -> buildAbnormalAnswer((AbnormalResult) data);
 
@@ -1418,16 +1487,16 @@ public class AiServiceImpl implements IAiService {
     }
 
     BigDecimal total =
-        savedTransactions.stream()
-            .map(TransactionResponse::getAmount)
-            .filter(Objects::nonNull)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
+            savedTransactions.stream()
+                    .map(TransactionResponse::getAmount)
+                    .filter(Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
 
     return "Đã lưu "
-        + savedTransactions.size()
-        + " giao dịch thành công, tổng số tiền là "
-        + formatMoney(total)
-        + ".";
+            + savedTransactions.size()
+            + " giao dịch thành công, tổng số tiền là "
+            + formatMoney(total)
+            + ".";
   }
 
   private String buildCompareAnswer(CompareResult compare) {
@@ -1437,33 +1506,33 @@ public class AiServiceImpl implements IAiService {
 
     if (diff.compareTo(BigDecimal.ZERO) > 0) {
       return "Tháng này "
-          + compare.getLabel()
-          + " của bạn là "
-          + formatMoney(current)
-          + ", tăng "
-          + formatMoney(diff)
-          + " so với tháng trước ("
-          + formatMoney(previous)
-          + ").";
+              + compare.getLabel()
+              + " của bạn là "
+              + formatMoney(current)
+              + ", tăng "
+              + formatMoney(diff)
+              + " so với tháng trước ("
+              + formatMoney(previous)
+              + ").";
     }
 
     if (diff.compareTo(BigDecimal.ZERO) < 0) {
       return "Tháng này "
-          + compare.getLabel()
-          + " của bạn là "
-          + formatMoney(current)
-          + ", giảm "
-          + formatMoney(diff.abs())
-          + " so với tháng trước ("
-          + formatMoney(previous)
-          + ").";
+              + compare.getLabel()
+              + " của bạn là "
+              + formatMoney(current)
+              + ", giảm "
+              + formatMoney(diff.abs())
+              + " so với tháng trước ("
+              + formatMoney(previous)
+              + ").";
     }
 
     return "Tháng này và tháng trước, "
-        + compare.getLabel()
-        + " của bạn đều là "
-        + formatMoney(current)
-        + ".";
+            + compare.getLabel()
+            + " của bạn đều là "
+            + formatMoney(current)
+            + ".";
   }
 
   private String buildAbnormalAnswer(AbnormalResult abnormal) {
@@ -1472,14 +1541,14 @@ public class AiServiceImpl implements IAiService {
     }
 
     return "Danh mục có dấu hiệu tăng mạnh nhất là "
-        + abnormal.getCategory()
-        + ": tháng này "
-        + formatMoney(abnormal.getCurrent())
-        + ", tháng trước "
-        + formatMoney(abnormal.getPrevious())
-        + ", chênh lệch "
-        + formatMoney(abnormal.getDifference())
-        + ".";
+            + abnormal.getCategory()
+            + ": tháng này "
+            + formatMoney(abnormal.getCurrent())
+            + ", tháng trước "
+            + formatMoney(abnormal.getPrevious())
+            + ", chênh lệch "
+            + formatMoney(abnormal.getDifference())
+            + ".";
   }
 
   private String cleanJson(String raw) {
@@ -1538,7 +1607,7 @@ public class AiServiceImpl implements IAiService {
 
   private boolean looksLikePureTransaction(String text) {
     return containsMoney(text)
-        && !containsAny(
+            && !containsAny(
             text, "bao nhiêu", "tổng", "số dư", "nhiều nhất", "so với", "gợi ý", "khuyên");
   }
 
@@ -1620,6 +1689,55 @@ public class AiServiceImpl implements IAiService {
     return format.format(safeAmount.longValue()) + "đ";
   }
 
+  private String detectIntentHint(String message) {
+    String text = normalize(message);
+
+    if (containsAny(text, BALANCE_ALIASES.toArray(new String[0]))) {
+      return "BALANCE_HINT";
+    }
+
+    if (containsAny(text, "chi bao nhiêu", "tổng chi", "đã chi", "chi tiêu bao nhiêu")) {
+      return "TOTAL_EXPENSE_HINT";
+    }
+
+    if (containsAny(text, "thu bao nhiêu", "tổng thu", "đã nhận", "thu nhập bao nhiêu")) {
+      return "TOTAL_INCOME_HINT";
+    }
+
+    return "";
+  }
+
+  private boolean isShortFollowUp(String text) {
+    if (isBlank(text)) {
+      return false;
+    }
+
+    String[] parts = text.trim().split("\\s+");
+    return parts.length <= SHORT_FOLLOW_UP_MAX_WORDS;
+  }
+
+  private boolean hasFinancialContext(List<String> history) {
+    if (history == null || history.isEmpty()) {
+      return false;
+    }
+
+    String merged = normalize(String.join(" ", history));
+
+    return containsAny(
+            merged,
+            "tháng này",
+            "tháng trước",
+            "hôm nay",
+            "tuần này",
+            "tuần trước",
+            "năm nay",
+            "số dư",
+            "chi",
+            "thu",
+            "ăn uống",
+            "ngân sách");
+  }
+
   private LocalDateRange resolveTimeRange(String timeRange) {
     if (isBlank(timeRange)) {
       return LocalDateRange.allTime();
@@ -1679,11 +1797,11 @@ public class AiServiceImpl implements IAiService {
     public static LocalDateRange of(LocalDate start, LocalDate end) {
       long startMillis = start.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
       long endMillis =
-          end.plusDays(1)
-              .atStartOfDay(ZoneId.systemDefault())
-              .minusNanos(1)
-              .toInstant()
-              .toEpochMilli();
+              end.plusDays(1)
+                      .atStartOfDay(ZoneId.systemDefault())
+                      .minusNanos(1)
+                      .toInstant()
+                      .toEpochMilli();
 
       return new LocalDateRange(startMillis, endMillis);
     }

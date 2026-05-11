@@ -15,6 +15,22 @@ export default function HistoryScreen() {
     const [searchQuery, setSearchQuery] = useState('');
     const { isDark, colors } = useTheme();
     const styles = getStyles(colors, isDark);
+    const parseTransactionDate = (value: any) => {
+        if (typeof value === 'number') {
+            return new Date(value);
+        }
+
+        if (typeof value === 'string') {
+            const asNumber = Number(value);
+            if (!Number.isNaN(asNumber)) {
+                return new Date(asNumber);
+            }
+
+            return new Date(value.replace(' ', 'T'));
+        }
+
+        return new Date(0);
+    };
 
     // 1. GỌI API LẤY DỮ LIỆU (Thêm <any> để TS không bắt bẻ cấu trúc response)
     const { data: transactionsData, isLoading, refetch, isRefetching } = useQuery<any>({
@@ -22,8 +38,9 @@ export default function HistoryScreen() {
         queryFn: () => transactionService.getAll()
     });
 
-    // Trỏ đúng vào mảng: Response -> data (Object phân trang) -> data (Mảng thật)
-    const transactions: Transaction[] = transactionsData?.data?.data || [];
+    const transactions: Transaction[] = Array.isArray(transactionsData?.data)
+        ? transactionsData.data
+        : [];
 
     // 2. LOGIC LỌC DỮ LIỆU
     const filteredData = useMemo(() => {
@@ -41,30 +58,47 @@ export default function HistoryScreen() {
         });
     }, [transactions, activeFilter, searchQuery]);
 
-    // 3. HÀM NHÓM GIAO DỊCH THEO NGÀY
     const groupedTransactions = useMemo(() => {
-        const groups: { [key: string]: Transaction[] } = {};
+         const getDateValue = (value: any) => {
+             if (typeof value === 'number') return new Date(value);
 
-        filteredData.forEach((item: Transaction) => {
-            const date = new Date(String(item.transactionDate).replace(' ', 'T'));
-            const today = new Date();
-            const yesterday = new Date();
-            yesterday.setDate(today.getDate() - 1);
+             if (typeof value === 'string') {
+                 const asNumber = Number(value);
+                 if (!Number.isNaN(asNumber)) return new Date(asNumber);
+                 return new Date(value.replace(' ', 'T'));
+             }
 
-            let dateLabel = "";
-            if (date.toDateString() === today.toDateString()) {
-                dateLabel = `Hôm nay, ${date.getDate()} Thg ${date.getMonth() + 1}`;
-            } else if (date.toDateString() === yesterday.toDateString()) {
-                dateLabel = `Hôm qua, ${date.getDate()} Thg ${date.getMonth() + 1}`;
-            } else {
-                dateLabel = `${date.getDate()} Thg ${date.getMonth() + 1}, ${date.getFullYear()}`;
-            }
+             return new Date(0);
+         };
 
-            if (!groups[dateLabel]) groups[dateLabel] = [];
-            groups[dateLabel].push(item);
-        });
-        return groups;
-    }, [filteredData]);
+         const sortedData = [...filteredData].sort(
+             (a, b) => getDateValue(b.transactionDate).getTime() - getDateValue(a.transactionDate).getTime()
+         );
+
+         const groups: { [key: string]: Transaction[] } = {};
+
+         sortedData.forEach((item: Transaction) => {
+             const date = getDateValue(item.transactionDate);
+
+             const today = new Date();
+             const yesterday = new Date();
+             yesterday.setDate(today.getDate() - 1);
+
+             let dateLabel = "";
+             if (date.toDateString() === today.toDateString()) {
+                 dateLabel = `Hôm nay, ${date.getDate()} Thg ${date.getMonth() + 1}`;
+             } else if (date.toDateString() === yesterday.toDateString()) {
+                 dateLabel = `Hôm qua, ${date.getDate()} Thg ${date.getMonth() + 1}`;
+             } else {
+                 dateLabel = `${date.getDate()} Thg ${date.getMonth() + 1}, ${date.getFullYear()}`;
+             }
+
+             if (!groups[dateLabel]) groups[dateLabel] = [];
+             groups[dateLabel].push(item);
+         });
+
+         return groups;
+     }, [filteredData]);
 
     const renderTransactionItem = (item: Transaction) => {
         // Xác định màu nền dựa trên type và chế độ sáng/tối

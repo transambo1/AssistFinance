@@ -16,6 +16,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @Tag(name = "Transaction APIs", description = "Grouped Transaction APIs")
 @RestController
 @RequestMapping("/api/v1/transactions")
@@ -57,8 +59,8 @@ public class TransactionController {
         @ApiResponse(responseCode = "400", description = "Validation failed, entity not found")
       })
   @GetMapping
-  public ResponseEntity<BaseResponse<BasePaginationResponse<TransactionResponse>>>
-      getListTransactionsByFilter(@ParameterObject TransactionFilterRequest request) {
+  public ResponseEntity<BaseResponse<List<TransactionResponse>>> getListTransactionsByFilter(
+          @ParameterObject TransactionFilterRequest request) {
     return ResponseEntity.ok(transactionService.getTransactionHistories(request));
   }
 

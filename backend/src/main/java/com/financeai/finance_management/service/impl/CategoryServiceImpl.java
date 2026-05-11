@@ -47,14 +47,14 @@ public class CategoryServiceImpl implements ICategoryService {
     }
 
     List<Category> defaultCategories =
-        List.of(
-            buildDefaultCategory(user, "Ăn uống", CategoryType.EXPENSE, "food", "#FF6B6B"),
-            buildDefaultCategory(user, "Di chuyển", CategoryType.EXPENSE, "car", "#4ECDC4"),
-            buildDefaultCategory(user, "Giải trí", CategoryType.EXPENSE, "game", "#1A535C"),
-            buildDefaultCategory(user, "Lương", CategoryType.INCOME, "salary", "#2ECC71"),
-            buildDefaultCategory(user, "Thưởng", CategoryType.INCOME, "bonus", "#27AE60"),
-            buildDefaultCategory(user, "Chi phí khác", CategoryType.EXPENSE, "more", "#9E9E9E"),
-            buildDefaultCategory(user, "Thu nhập khác", CategoryType.INCOME, "more", "#9E9E9E"));
+            List.of(
+                    buildDefaultCategory(user, "Ăn uống", CategoryType.EXPENSE, "restaurant", "#FF6B6B"),
+                    buildDefaultCategory(user, "Di chuyển", CategoryType.EXPENSE, "directions-car", "#4ECDC4"),
+                    buildDefaultCategory(user, "Giải trí", CategoryType.EXPENSE, "movie", "#1A535C"),
+                    buildDefaultCategory(user, "Lương", CategoryType.INCOME, "payments", "#2ECC71"),
+                    buildDefaultCategory(user, "Thưởng", CategoryType.INCOME, "card-giftcard", "#27AE60"),
+                    buildDefaultCategory(user, "Chi phí khác", CategoryType.EXPENSE, "category", "#9E9E9E"),
+                    buildDefaultCategory(user, "Thu nhập khác", CategoryType.INCOME, "local-atm", "#9E9E9E"));
 
     categoryRepository.saveAll(defaultCategories);
   }

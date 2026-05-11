@@ -25,6 +25,7 @@ import com.financeai.finance_management.service.ITransactionService;
 import com.financeai.finance_management.specification.TransactionSpecification;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -177,25 +178,25 @@ public class TransactionServiceImpl implements ITransactionService {
 
   @Override
   @Transactional(readOnly = true)
-  public BaseResponse<BasePaginationResponse<TransactionResponse>> getTransactionHistories(
-      TransactionFilterRequest request) {
+  public BaseResponse<List<TransactionResponse>> getTransactionHistories(
+          TransactionFilterRequest request) {
 
     var userContext = budgetService.getCurrentUserId();
 
     Specification<Transaction> spec =
-        TransactionSpecification.builder()
-            .withKeyword(request.getSearch())
-            .withRegistrationDateRange(request.getStartDate(), request.getEndDate())
-            .withUserId(userContext)
-            .withCategoryId(request.getCategoryId())
-            .build();
+            TransactionSpecification.builder()
+                    .withKeyword(request.getSearch())
+                    .withRegistrationDateRange(request.getStartDate(), request.getEndDate())
+                    .withUserId(userContext)
+                    .withCategoryId(request.getCategoryId())
+                    .build();
 
-    Pageable pageable = request.pageable();
+    List<TransactionResponse> transactions =
+            transactionRepository.findAll(spec).stream()
+                    .map(transactionMapper::toResponse)
+                    .toList();
 
-    Page<TransactionResponse> pageResponse =
-        transactionRepository.findAll(spec, pageable).map(transactionMapper::toResponse);
-
-    return BaseResponse.ok(BasePaginationResponse.of(pageResponse));
+    return BaseResponse.ok(transactions);
   }
 
   private void updateUserBalance(

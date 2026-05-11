@@ -6,6 +6,8 @@ import com.financeai.finance_management.dto.response.BasePaginationResponse;
 import com.financeai.finance_management.dto.response.BaseResponse;
 import com.financeai.finance_management.dto.response.TransactionResponse;
 
+import java.util.List;
+
 public interface ITransactionService {
   BaseResponse<TransactionResponse> createTransaction(UpsertTransactionRequest request);
 
@@ -13,6 +15,6 @@ public interface ITransactionService {
 
   BaseResponse<Void> deleteTransaction(String id);
 
-  BaseResponse<BasePaginationResponse<TransactionResponse>> getTransactionHistories(
-      TransactionFilterRequest request);
+  BaseResponse<List<TransactionResponse>> getTransactionHistories(
+          TransactionFilterRequest request);
 }

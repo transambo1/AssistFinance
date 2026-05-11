@@ -20,8 +20,8 @@ public interface TransactionRepository
             FROM Transaction t
             WHERE t.user.id = :userId
               AND t.type = :type
-              AND (:startDate IS NULL OR t.createdAt >= :startDate)
-              AND (:endDate IS NULL OR t.createdAt <= :endDate)
+              AND (:startDate IS NULL OR t.transactionDate >= :startDate)
+              AND (:endDate IS NULL OR t.transactionDate <= :endDate)
               AND t.deletedAt IS NULL
         """)
   BigDecimal sumByUserIdAndTypeAndDateRange(
@@ -37,8 +37,8 @@ public interface TransactionRepository
             WHERE t.user.id = :userId
               AND t.type = :type
               AND t.category.id = :categoryId
-              AND (:startDate IS NULL OR t.createdAt >= :startDate)
-              AND (:endDate IS NULL OR t.createdAt <= :endDate)
+              AND (:startDate IS NULL OR t.transactionDate >= :startDate)
+              AND (:endDate IS NULL OR t.transactionDate <= :endDate)
               AND t.deletedAt IS NULL
         """)
   BigDecimal sumByUserIdAndTypeAndCategoryIdAndDateRange(

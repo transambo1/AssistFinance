@@ -43,13 +43,37 @@ export default function DashboardScreen() {
     return rawUserData?.data || rawUserData?.result || rawUserData;
   }, [rawUserData]);
 
+  const parseTransactionDate = (value: any) => {
+    if (typeof value === 'number') return value;
+
+    if (typeof value === 'string') {
+      const asNumber = Number(value);
+      if (!Number.isNaN(asNumber)) return asNumber;
+
+      const parsed = new Date(value.replace(' ', 'T')).getTime();
+      return Number.isNaN(parsed) ? 0 : parsed;
+    }
+
+    return 0;
+  };
+
   const transactionsData = useMemo(() => {
     if (!rawTxData) return [];
     if (Array.isArray(rawTxData)) return rawTxData;
     return rawTxData?.data?.data || rawTxData?.result?.data || rawTxData?.data || [];
   }, [rawTxData]);
 
-  const recentTransactions = Array.isArray(transactionsData) ? transactionsData.slice(0, 5) : [];
+  const recentTransactions = useMemo(() => {
+    if (!Array.isArray(transactionsData)) return [];
+
+    return [...transactionsData]
+      .sort(
+        (a: any, b: any) =>
+          parseTransactionDate(b.transactionDate || b.createdAt) -
+          parseTransactionDate(a.transactionDate || a.createdAt)
+      )
+      .slice(0, 5);
+  }, [transactionsData]);
 
   // --- LOGIC MỚI: TÍNH THU NHẬP / CHI TIÊU HÔM NAY ---
   const todayStats = useMemo(() => {

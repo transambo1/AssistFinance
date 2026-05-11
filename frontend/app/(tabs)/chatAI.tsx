@@ -158,7 +158,7 @@ export default function AIChatScreen() {
                 sender: 'ai',
                 text: aiResponse?.answer || 'Đã xử lý xong.',
                 actionType: aiResponse?.actionType,
-                transactionData: (aiResponse?.data && Array.isArray(aiResponse.data) && aiResponse.data.length > 0) ? aiResponse.data[0] : null
+                transactionData: Array.isArray(aiResponse?.data) ? aiResponse.data : []
             };
 
             setMessages(prev => [...prev, aiMsg]);
@@ -212,17 +212,22 @@ export default function AIChatScreen() {
 
             // 2. Cập nhật lại UI trong màn hình chat
             setMessages(prev => prev.map(msg => {
-                if (msg.actionType === 'PARSE_TRANSACTION' && msg.transactionData?.id === editingTransaction.id) {
+                if (msg.actionType === 'PARSE_TRANSACTION' && Array.isArray(msg.transactionData)) {
                     return {
                         ...msg,
-                        transactionData: {
-                            ...msg.transactionData,
-                            amount: updatedAmount,
-                            note: editNote,
-                            type: editType,
-                            categoryId: editCategoryId,
-                            categoryName: selectedCategory ? selectedCategory.name : msg.transactionData.categoryName
-                        }
+                        transactionData: msg.transactionData.map((tx: any) => {
+                            if (tx.id === editingTransaction.id) {
+                                return {
+                                    ...tx,
+                                    amount: updatedAmount,
+                                    note: editNote,
+                                    type: editType,
+                                    categoryId: editCategoryId,
+                                    categoryName: selectedCategory ? selectedCategory.name : tx.categoryName
+                                };
+                            }
+                            return tx;
+                        })
                     };
                 }
                 return msg;
@@ -270,48 +275,73 @@ export default function AIChatScreen() {
                         <MaterialIcons name="smart-toy" size={20} color="#ffffff" />
                     </View>
                     <View style={styles.bubbleAI}>
-                        <Text style={styles.textAI}>{msg.text}</Text>
+                        {msg.text ? <Text style={styles.textAI}>{msg.text}</Text> : null}
 
                         {/* Thẻ Review Chi Tiêu */}
-                        {msg.actionType === 'PARSE_TRANSACTION' && msg.transactionData && (
-                            <TouchableOpacity
-                                style={styles.transactionPreviewCard}
-                                onPress={() => handleOpenEdit(msg.transactionData)}
-                                activeOpacity={0.7}
-                            >
-                                <View style={styles.previewCardHeader}>
-                                    <Text style={styles.previewStatusText}>
-                                        {msg.transactionData.type === 'INCOME' ? 'Đã ghi nhận: Thu nhập' : 'Đã ghi nhận: Chi phí'}
-                                    </Text>
-                                    <Text style={styles.previewDateText}>
-                                        {new Date().toLocaleDateString('vi-VN', { weekday: 'short', day: 'numeric', month: 'short' })}
-                                    </Text>
-                                </View>
+                        {msg.actionType === 'PARSE_TRANSACTION' &&
+                         Array.isArray(msg.transactionData) &&
+                         msg.transactionData.length > 0 && (
+                            <>
+                                {msg.transactionData.map((tx: any, txIndex: number) => (
+                                    <TouchableOpacity
+                                        key={tx.id || txIndex}
+                                        style={[
+                                            styles.transactionPreviewCard,
+                                            txIndex > 0 && { marginTop: 12 }
+                                        ]}
+                                        onPress={() => handleOpenEdit(tx)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <View style={styles.previewCardHeader}>
+                                            <Text style={styles.previewStatusText}>
+                                                {tx.type === 'INCOME' ? 'Đã ghi nhận: Thu nhập' : 'Đã ghi nhận: Chi phí'}
+                                            </Text>
+                                            <Text style={styles.previewDateText}>
+                                                {new Date().toLocaleDateString('vi-VN', { weekday: 'short', day: 'numeric', month: 'short' })}
+                                            </Text>
+                                        </View>
 
-                                <View style={styles.previewCardBody}>
-                                    <View style={[styles.previewIconWrapper, { backgroundColor: msg.transactionData.type === 'INCOME' ? '#e0f7fa' : '#ffebee' }]}>
-                                        <Text style={styles.previewEmoji}>
-                                            {msg.transactionData.type === 'INCOME' ? '💰' : '🍔'}
-                                        </Text>
-                                    </View>
-                                    <View style={styles.previewInfo}>
-                                        <Text style={styles.previewCategoryName} numberOfLines={1}>
-                                            {msg.transactionData.categoryName || 'Chi tiêu mới'}
-                                        </Text>
-                                        <Text style={styles.previewNoteText} numberOfLines={1}>
-                                            {msg.transactionData.note || 'Không có ghi chú'}
-                                        </Text>
-                                    </View>
-                                    <Text style={[styles.previewAmountText, { color: msg.transactionData.type === 'INCOME' ? '#1b6d24' : '#ff635f' }]}>
-                                        {msg.transactionData.type === 'INCOME' ? '+' : '-'}₫{Number(msg.transactionData.amount || 0).toLocaleString('vi-VN')}
-                                    </Text>
-                                </View>
+                                        <View style={styles.previewCardBody}>
+                                            <View
+                                                style={[
+                                                    styles.previewIconWrapper,
+                                                    { backgroundColor: tx.type === 'INCOME' ? '#e0f7fa' : '#ffebee' }
+                                                ]}
+                                            >
+                                                <Text style={styles.previewEmoji}>
+                                                    {tx.type === 'INCOME' ? '💰' : '🍔'}
+                                                </Text>
+                                            </View>
 
-                                <TouchableOpacity style={styles.quickEditBtn} onPress={() => handleOpenEdit(msg.transactionData)}>
-                                    <MaterialIcons name="edit" size={16} color="#1a237e" style={{ marginRight: 6 }} />
-                                    <Text style={styles.quickEditText}>Chỉnh sửa giao dịch</Text>
-                                </TouchableOpacity>
-                            </TouchableOpacity>
+                                            <View style={styles.previewInfo}>
+                                                <Text style={styles.previewCategoryName} numberOfLines={1}>
+                                                    {tx.categoryName || 'Chi tiêu mới'}
+                                                </Text>
+                                                <Text style={styles.previewNoteText} numberOfLines={1}>
+                                                    {tx.note || 'Không có ghi chú'}
+                                                </Text>
+                                            </View>
+
+                                            <Text
+                                                style={[
+                                                    styles.previewAmountText,
+                                                    { color: tx.type === 'INCOME' ? '#1b6d24' : '#ff635f' }
+                                                ]}
+                                            >
+                                                {tx.type === 'INCOME' ? '+' : '-'}₫{Number(tx.amount || 0).toLocaleString('vi-VN')}
+                                            </Text>
+                                        </View>
+
+                                        <TouchableOpacity
+                                            style={styles.quickEditBtn}
+                                            onPress={() => handleOpenEdit(tx)}
+                                        >
+                                            <MaterialIcons name="edit" size={16} color="#1a237e" style={{ marginRight: 6 }} />
+                                            <Text style={styles.quickEditText}>Chỉnh sửa giao dịch</Text>
+                                        </TouchableOpacity>
+                                    </TouchableOpacity>
+                                ))}
+                            </>
                         )}
                     </View>
                 </View>
