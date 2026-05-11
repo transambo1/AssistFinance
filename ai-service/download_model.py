@@ -14,7 +14,7 @@ os.makedirs(MODELS_DIR, exist_ok=True)
 FILES = {
     "category_encoder.pkl": "1bMxnKdwFKNRKgiImWNXQ3gEINDiu6n0W",
     "type_encoder.pkl": "1nxMYIImttsTdKVsxeuNQuTrrxVacFuuZ",
-    #"finance_nlu_metadata.json": "1kY5HjJPdsf9lWoXTv83HlxFvtS-i7OCI",
+    "finance_nlu_metadata.json": "172xq6ESTxIOy-k6fGbsn2sZrFV-qAYUx",
     "phobert_type_model.zip": "1bqwAQPdcc5Bja7xSEHGByoBkOknqBAV4",
     "phobert_category_model.zip": "1WkSWrpYmQfkPh9lJGHeZp5d5YvRtNZc6",
 }
